@@ -11,8 +11,8 @@ on:
 
 env:
   GODOT_VERSION: "4.7.2"
-  GODOT_DOWNLOAD_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.2/Godot_v4.7.2-stable_linux.x86_64.zip"
-  TEMPLATES_DOWNLOAD_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.2/Godot_v4.7.2-stable_export_templates.tpz"
+  GODOT_DOWNLOAD_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip"
+  TEMPLATES_DOWNLOAD_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz"
   EXPORT_PRESET_ANDROID: "Android"
   EXPORT_PRESET_AAB: "Android AAB (Play Store)"
   BUILD_DIR: "build"
