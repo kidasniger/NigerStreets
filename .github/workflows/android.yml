@@ -1,0 +1,136 @@
+name: Android Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.2"
+  EXPORT_NAME_ANDROID: "Android"
+  EXPORT_NAME_AAB: "Android AAB (Play Store)"
+  BUILD_DIR: "build"
+
+jobs:
+  build-apk-debug:
+    name: Build APK (Debug)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Godot
+        uses: firebelley/godot-export@v6.0.0
+        with:
+          godot_version: ${{ env.GODOT_VERSION }}
+          template_version: ${{ env.GODOT_VERSION }}
+          relative_project_path: ./
+          export_preset_name: ${{ env.EXPORT_NAME_ANDROID }}
+          export_path: ${{ env.BUILD_DIR }}/NigerStreets-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NigerStreets-debug-apk
+          path: ${{ env.BUILD_DIR }}/NigerStreets-debug.apk
+          retention-days: 30
+
+  build-aab-release:
+    name: Build AAB (Release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Decode keystore
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ env.BUILD_DIR }}/release.keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Setup Godot with keystore
+        uses: firebelley/godot-export@v6.0.0
+        with:
+          godot_version: ${{ env.GODOT_VERSION }}
+          template_version: ${{ env.GODOT_VERSION }}
+          relative_project_path: ./
+          export_preset_name: ${{ env.EXPORT_NAME_AAB }}
+          export_path: ${{ env.BUILD_DIR }}/NigerStreets-release.aab
+          keystore: ${{ env.BUILD_DIR }}/release.keystore
+          keystore_password: ${{ secrets.KEYSTORE_PASSWORD }}
+          key_name: ${{ secrets.KEY_ALIAS }}
+          key_password: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NigerStreets-release-aab
+          path: ${{ env.BUILD_DIR }}/NigerStreets-release.aab
+          retention-days: 90
+
+      - name: Upload AAB to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.BUILD_DIR }}/NigerStreets-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Optional: Also build APK release for direct testing
+  build-apk-release:
+    name: Build APK (Release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Decode keystore
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ env.BUILD_DIR }}/release.keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Setup Godot with keystore (APK)
+        uses: firebelley/godot-export@v6.0.0
+        with:
+          godot_version: ${{ env.GODOT_VERSION }}
+          template_version: ${{ env.GODOT_VERSION }}
+          relative_project_path: ./
+          export_preset_name: ${{ env.EXPORT_NAME_ANDROID }}
+          export_path: ${{ env.BUILD_DIR }}/NigerStreets-release.apk
+          keystore: ${{ env.BUILD_DIR }}/release.keystore
+          keystore_password: ${{ secrets.KEYSTORE_PASSWORD }}
+          key_name: ${{ secrets.KEY_ALIAS }}
+          key_password: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NigerStreets-release-apk
+          path: ${{ env.BUILD_DIR }}/NigerStreets-release.apk
+          retention-days: 90
+
+      - name: Upload APK to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.BUILD_DIR }}/NigerStreets-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
