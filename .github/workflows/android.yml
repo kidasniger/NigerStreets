@@ -1,28 +1,27 @@
-name: Android Build
+name: Build & Release APK
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: nigerstreets-build-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   GODOT_VERSION: "4.7.2"
   GODOT_DOWNLOAD_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip"
   TEMPLATES_DOWNLOAD_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz"
   EXPORT_PRESET_ANDROID: "Android"
-  EXPORT_PRESET_AAB: "Android AAB (Play Store)"
   BUILD_DIR: "build"
 
 jobs:
-  build-apk-debug:
-    name: Build APK (Debug)
+  build:
+    name: Build & Sign Release APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -30,87 +29,54 @@ jobs:
         uses: actions/checkout@v4
         with:
           lfs: true
-
-      - name: Setup Godot and export APK (Debug)
-        uses: firebelley/godot-export@v6.0.0
-        with:
-          godot_executable_download_url: ${{ env.GODOT_DOWNLOAD_URL }}
-          godot_export_templates_download_url: ${{ env.TEMPLATES_DOWNLOAD_URL }}
-          relative_project_path: ./
-          presets_to_export: ${{ env.EXPORT_PRESET_ANDROID }}
-          relative_export_path: ${{ env.BUILD_DIR }}/NigerStreets-debug.apk
-          export_debug: true
-          cache: true
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NigerStreets-debug-apk
-          path: ${{ env.BUILD_DIR }}/NigerStreets-debug.apk
-          retention-days: 30
-
-  build-aab-release:
-    name: Build AAB (Release)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
+          fetch-depth: 0
 
       - name: Decode release keystore
         run: |
           printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore"
 
-      - name: Setup Godot and export AAB (Release)
+      - name: Extract Version Info
+        id: version_info
+        run: |
+          BASE_VERSION=$(grep 'version/name=' export_presets.cfg | head -n 1 | sed -E 's/^version\/name="?([^"]+)"?$/\1/')
+          if [ -z "$BASE_VERSION" ]; then
+            BASE_VERSION="1.0"
+          fi
+          VERSION_NAME="$BASE_VERSION-b${{ github.run_number }}"
+          VERSION_CODE="${{ github.run_number }}"
+          TAG_NAME="v$VERSION_NAME"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Release Notes
+        id: release_notes
+        shell: bash
+        run: |
+          # Le corps du commit courant sert de notes de release (orienté changements utilisateur),
+          # comme dans le système MusicPro.
+          NOTES=$(git log -1 --pretty=format:'%b' | sed '/^[[:space:]]*$/d')
+          if [ -z "$NOTES" ]; then
+            NOTES=$(git log -1 --pretty=format:'%s')
+          fi
+          {
+            echo 'notes<<EOF'
+            echo "$NOTES"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bump versionCode/Name in export presets
+        run: |
+          sed -i -E "s|^version/code=[0-9]+|version/code=${{ steps.version_info.outputs.version_code }}|" export_presets.cfg
+          sed -i -E "s|^version/name=\"[^\"]*\"|version/name=\"${{ steps.version_info.outputs.version_name }}\"|" export_presets.cfg
+          grep -n '^version/' export_presets.cfg
+
+      - name: Setup Godot and export APK (Release)
         uses: firebelley/godot-export@v6.0.0
-        with:
-          godot_executable_download_url: ${{ env.GODOT_DOWNLOAD_URL }}
-          godot_export_templates_download_url: ${{ env.TEMPLATES_DOWNLOAD_URL }}
-          relative_project_path: ./
-          presets_to_export: ${{ env.EXPORT_PRESET_AAB }}
-          relative_export_path: ${{ env.BUILD_DIR }}/NigerStreets-release.aab
-          export_debug: false
-          cache: true
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-
-      - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NigerStreets-release-aab
-          path: ${{ env.BUILD_DIR }}/NigerStreets-release.aab
-          retention-days: 90
-
-      - name: Upload AAB to GitHub Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ env.BUILD_DIR }}/NigerStreets-release.aab
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-apk-release:
-    name: Build APK (Release)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Decode release keystore
-        run: |
-          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore"
-
-      - name: Setup Godot and export APK (Release)
-        uses: firebelley/godot-export@v6.0.0
         with:
           godot_executable_download_url: ${{ env.GODOT_DOWNLOAD_URL }}
           godot_export_templates_download_url: ${{ env.TEMPLATES_DOWNLOAD_URL }}
@@ -119,22 +85,34 @@ jobs:
           relative_export_path: ${{ env.BUILD_DIR }}/NigerStreets-release.apk
           export_debug: false
           cache: true
-        env:
-          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
-          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
-          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+
+      - name: Rename APK
+        run: |
+          mkdir -p build_output
+          cp ${{ env.BUILD_DIR }}/NigerStreets-release.apk "build_output/NigerStreets-${{ steps.version_info.outputs.tag_name }}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: NigerStreets-release-apk
-          path: ${{ env.BUILD_DIR }}/NigerStreets-release.apk
+          path: build_output/*.apk
           retention-days: 90
 
-      - name: Upload APK to GitHub Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.BUILD_DIR }}/NigerStreets-release.apk
+          tag_name: ${{ steps.version_info.outputs.tag_name }}
+          name: "Release ${{ steps.version_info.outputs.tag_name }} (v${{ steps.version_info.outputs.version_name }})"
+          body: |
+            ### Mise à jour Niger Streets
+            ${{ steps.release_notes.outputs.notes }}
+          files: build_output/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Summary
+        run: |
+          echo "### Build + APK signé + Release + Tag automatiques" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Fichier : NigerStreets-${{ steps.version_info.outputs.tag_name }}.apk" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version : ${{ steps.version_info.outputs.version_name }} (code ${{ steps.version_info.outputs.version_code }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag : ${{ steps.version_info.outputs.tag_name }}" >> "$GITHUB_STEP_SUMMARY"

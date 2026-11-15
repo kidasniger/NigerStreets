@@ -1,113 +1,67 @@
-# Build Android automatisé — GitHub Actions 🤖
+# Release Android automatique — GitHub Actions 🤖
 
-Ce dépôt contient un workflow CI/CD (`.github/workflows/android.yml`) qui compile automatiquement l'APK/AAB à chaque push et publication de release.
-
----
-
-## 🎯 Ce que fait le workflow
-
-| Job | Déclencheur | Sortie | Artefact |
-|---|---|---|---|
-| **build-apk-debug** | Push sur `main`, PR, workflow_dispatch | `NigerStreets-debug.apk` (signé debug) | Téléchargeable 30 jours |
-| **build-aab-release** | Publication d'une **Release GitHub** (`v*`), workflow_dispatch | `NigerStreets-release.aab` (signé release) | Téléchargeable 90 jours + attaché à la Release |
-| **build-apk-release** | Publication d'une **Release GitHub** (`v*`), workflow_dispatch | `NigerStreets-release.apk` (signé release) | Téléchargeable 90 jours + attaché à la Release |
-
-> **Note** : Les builds *release* (AAB/APK signés) ne s'exécutent **que** lors de la création d'une Release GitHub ou via "Run workflow" manuel. Cela évite de consommer des minutes CI pour des commits intermédiaires.
+Ce dépôt utilise le **même système de release que MusicPro** : chaque push sur `main` produit un APK signé et crée automatiquement une Release GitHub avec l'APK attaché.
 
 ---
 
-## 🔐 Configuration des secrets (requis pour builds release)
+## 🎯 Ce que fait le workflow (`.github/workflows/android.yml`)
 
-Pour signer les builds release (AAB/APK), ajoute ces **secrets** dans GitHub :  
-`Settings → Secrets and variables → Actions → New repository secret`
-
-| Secret | Description | Comment obtenir |
-|---|---|---|
-| `KEYSTORE_BASE64` | Keystore Java encodé en base64 | `base64 -w0 mon_keystore.jks` |
-| `KEYSTORE_PASSWORD` | Mot de passe du keystore | Ton mot de passe keystore |
-| `KEY_ALIAS` | Alias de la clé (ex: `release-key`) | `keytool -list -keystore mon_keystore.jks` |
-| `KEY_PASSWORD` | Mot de passe de la clé | Souvent identique au keystore |
-
-### Générer un keystore release (si pas encore fait)
-```bash
-keytool -genkey -v -keystore release.keystore -alias release-key \
-  -keyalg RSA -keysize 2048 -validity 10000 \
-  -storepass TON_MOT_DE_PASSE -keypass TON_MOT_DE_PASSE \
-  -dname "CN=Niger Streets, OU=Games, O=NigerStreets, L=Niamey, C=NE"
-
-# Encoder en base64 pour le secret
-base64 -w0 release.keystore  # → copie le résultat dans KEYSTORE_BASE64
-```
-
-⚠️ **Garde le fichier `release.keystore` en sécurité** — il est indispensable pour mettre à jour l'app sur le Play Store.
-
----
-
-## 🚀 Comment déclencher un build
-
-### Build debug (APK) — automatique
-Chaque `git push origin main` lance `build-apk-debug`.  
-Récupère l'artefact : onglet **Actions** → run → **Artifacts** → `NigerStreets-debug-apk`.
-
-### Build release (AAB/APK) — via Release GitHub
-1. Va sur **Releases** → **Create a new release**
-2. Tag version : `v1.0.0` (format `v*` requis)
-3. Titre : `Version 1.0.0`
-4. **Publish release**
-5. Le workflow se lance → artefacts `NigerStreets-release-aab` / `NigerStreets-release-apk` + fichiers attachés à la Release.
-
-### Build manuel (sans tag)
-Onglet **Actions** → **Android Build** → **Run workflow** → choisir `main` → **Run workflow**.  
-Coche "build-aab-release" / "build-apk-release" si tu veux les versions signées (nécessite les secrets configurés).
-
----
-
-## 📦 Télécharger les artefacts
-
-| Interface | Comment |
+| Déclencheur | Résultat |
 |---|---|
-| **GitHub UI** | Actions → run → résumé → **Artifacts** (zip) |
-| **CLI (gh)** | `gh run download -R kidasniger/NigerStreets -n NigerStreets-debug-apk` |
-| **Release** | Page Releases → Assets (`.aab` / `.apk` release) |
+| **Push sur `main`** | APK release signé → Release GitHub `v1.0-b{N}` (tag créé + APK attaché) |
+| **Run workflow** (manuel) | Identique, à la demande depuis l'onglet Actions |
+
+Détails :
+
+- **Version** : `1.0-b{N}` où `{N}` = numéro de build (`run_number`). `versionCode` = `{N}` — croissant à chaque release, donc chaque APK s'installe en mise à jour par-dessus le précédent.
+- **Notes de release** : le **corps du message de commit** est utilisé comme résumé utilisateur. Les commits de release doivent donc rester orientés changements visibles dans le jeu.
+- **Artefact** `NigerStreets-release-apk` conservé 90 jours.
+
+---
+
+## 🔐 Secrets requis (configurés ✅)
+
+| Secret | Rôle |
+|---|---|
+| `KEYSTORE_BASE64` | Keystore release encodé en base64 |
+| `KEYSTORE_PASSWORD` | Mot de passe du keystore |
+| `KEY_ALIAS` | Alias de la clé (`nigerstreets`) |
+| `KEY_PASSWORD` | Mot de passe de la clé (identique au keystore) |
+
+Le workflow décode le keystore vers `$RUNNER_TEMP/release.keystore` puis Godot le consomme via les variables d'environnement officielles de Godot 4.x : `GODOT_ANDROID_KEYSTORE_RELEASE_PATH` / `_USER` / `_PASSWORD` (noms vérifiés dans le code source de Godot).
+
+⚠️ **Sauvegarde le keystore** (`nigerstreets-release.jks`) et son mot de passe **hors GitHub** : sans eux, impossible de signer une future mise à jour. Ne régénère jamais le keystore — les installations existantes refuseraient la mise à jour (signature différente).
+
+---
+
+## 🚀 Publier une mise à jour
+
+1. Commite tes changements avec un **message dont le corps décrit les nouveautés** (il devient le texte de la release).
+2. `git push origin main`.
+3. Le workflow construit l'APK signé (≈ 5 min) puis crée la Release `v1.0-b{N}` — onglet **Releases** → APK téléchargeable et installable.
+
+Retrouver un APK : onglet **Actions** → run → **Artifacts**, ou **Releases** → **Assets**.
 
 ---
 
 ## 🛠 Personnalisation
 
-### Changer la version Godot / templates
-Édite `env.GODOT_VERSION` dans `.github/workflows/android.yml` (ex: `"4.8"`).
+### Changer la version de base
+`version/name="X.Y"` dans `export_presets.cfg` — le suffixe `-b{N}` est ajouté automatiquement.
 
-### Ajouter d'architectures (x86_64 pour émulateurs)
-Dans `export_presets.cfg`, section `[preset.0.options]` :
-```ini
-architectures/x86_64=true
-```
-Puis commit → le workflow utilisera la config mise à jour.
+### Changer la version Godot
+Édite `env.GODOT_VERSION` et les 2 URLs de téléchargement dans `.github/workflows/android.yml`.
 
-### Activer shader_baker (précompilation shaders)
-Dans `export_presets.cfg`, pour les deux presets :
-```ini
-shader_baker/enabled=true
-```
-Export plus long, mais pas de lag shader au premier lancement sur Mali/Adreno.
+### Architectures
+`architectures/arm64-v8a` dans `export_presets.cfg` (ajouter `x86_64` pour les émulateurs).
 
 ---
 
-## 🐛 Dépannage courant
+## 🐛 Dépannage
 
 | Erreur | Cause | Solution |
 |---|---|---|
-| `Export template not found` | Templates 4.7.2 absents | L'action `firebelley/godot-export` les télécharge auto — vérifier `template_version` |
-| `Keystore not found` | Secrets manquants | Ajouter `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` |
-| `AAB rejected by Play Console` | Non signé / versionCode dupliqué | Incrémenter `version/code` dans `export_presets.cfg` + build release |
-| `Gradle download timeout` | Premier build gradle lent | C'est normal (5–10 min) — les builds suivants sont mis en cache |
-| `Permission denied` sur artefacts | Token GITHUB_TOKEN | L'action `upload-artifact` utilise le token auto — pas de config nécessaire |
-
----
-
-## 📚 Références
-
-- [firebelley/godot-export](https://github.com/firebelley/godot-export) — action Godot officielle communautaire
-- [Godot 4.x Export Android](https://docs.godotengine.org/en/4.7/tutorials/export/exporting_for_android.html)
-- [GitHub Actions Artifacts](https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts)
-- [softprops/action-gh-release](https://github.com/softprops/action-gh-release) — upload vers Releases
+| `Could not find release keystore` | Secrets absents ou invalides | Vérifier les 4 secrets |
+| `Android build template not installed` | Export AAB (gradle) demandé sans template installé | Le workflow n'exporte pas d'AAB ; pour le Play Store un jour, installer le template depuis l'éditeur (Projet → Installer le template de build Android) |
+| Signature différente entre versions | Keystore remplacé | Ne jamais régénérer le keystore — conserver `nigerstreets-release.jks` et son mot de passe |
+| `Gradle download timeout` / cache 400 | Service de cache GitHub indisponible | Transitoire — relancer le job |
