@@ -89,7 +89,15 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p build_output
-          cp ${{ env.BUILD_DIR }}/NigerStreets-release.apk "build_output/NigerStreets-${{ steps.version_info.outputs.tag_name }}.apk"
+          APK_FILE=$(find ${{ env.BUILD_DIR }} -type f -name '*.apk' | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Aucun .apk trouvé sous ${{ env.BUILD_DIR }} — contenu :"
+            find ${{ env.BUILD_DIR }} -type f | head -30
+            exit 1
+          fi
+          echo "APK exporté trouvé : $APK_FILE"
+          cp "$APK_FILE" "build_output/NigerStreets-${{ steps.version_info.outputs.tag_name }}.apk"
+          ls -lh build_output
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
