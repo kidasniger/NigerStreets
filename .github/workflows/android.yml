@@ -9,6 +9,9 @@ on:
     types: [published]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   GODOT_VERSION: "4.7.2"
   GODOT_DOWNLOAD_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip"
@@ -52,15 +55,18 @@ jobs:
     timeout-minutes: 30
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     env:
-      GODOT_ANDROID_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
-      GODOT_ANDROID_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-      GODOT_ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      GODOT_ANDROID_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+      GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
+      GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
+      GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Decode release keystore
+        run: |
+          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore"
 
       - name: Setup Godot and export AAB (Release)
         uses: firebelley/godot-export@v6.0.0
@@ -94,15 +100,18 @@ jobs:
     timeout-minutes: 30
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     env:
-      GODOT_ANDROID_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
-      GODOT_ANDROID_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-      GODOT_ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      GODOT_ANDROID_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+      GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
+      GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
+      GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Decode release keystore
+        run: |
+          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore"
 
       - name: Setup Godot and export APK (Release)
         uses: firebelley/godot-export@v6.0.0
