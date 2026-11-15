@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cellj7g6bmoeg"
+path.s3tc="res://.godot/imported/kidas_rigged_fbx_textures_0.png-91151513b08a82837be06e7ac0dce015.s3tc.ctex"
 path.etc2="res://.godot/imported/kidas_rigged_fbx_textures_0.png-91151513b08a82837be06e7ac0dce015.etc2.ctex"
 metadata={
-"imported_formats": ["etc2_astc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/character/kidas_rigged_fbx_textures_0.png"
-dest_files=["res://.godot/imported/kidas_rigged_fbx_textures_0.png-91151513b08a82837be06e7ac0dce015.etc2.ctex"]
+dest_files=["res://.godot/imported/kidas_rigged_fbx_textures_0.png-91151513b08a82837be06e7ac0dce015.s3tc.ctex", "res://.godot/imported/kidas_rigged_fbx_textures_0.png-91151513b08a82837be06e7ac0dce015.etc2.ctex"]
 
 [params]
 

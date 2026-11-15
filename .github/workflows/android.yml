@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      build_aab:
+        description: "Construire aussi l'AAB signé (Play Store)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -65,11 +70,13 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Bump versionCode/Name in export presets
+      - name: Bump versionCode/Name (presets + project.godot)
         run: |
           sed -i -E "s|^version/code=[0-9]+|version/code=${{ steps.version_info.outputs.version_code }}|" export_presets.cfg
           sed -i -E "s|^version/name=\"[^\"]*\"|version/name=\"${{ steps.version_info.outputs.version_name }}\"|" export_presets.cfg
+          sed -i -E "s|^config/version=\"[^\"]*\"|config/version=\"${{ steps.version_info.outputs.version_name }}\"|" project.godot
           grep -n '^version/' export_presets.cfg
+          grep -n '^config/version' project.godot
 
       - name: Setup Godot and export APK (Release)
         uses: firebelley/godot-export@v6.0.0
@@ -99,11 +106,56 @@ jobs:
           cp "$APK_FILE" "build_output/NigerStreets-${{ steps.version_info.outputs.tag_name }}.apk"
           ls -lh build_output
 
+      - name: Install Android build template (AAB uniquement)
+        if: github.event.inputs.build_aab == 'true'
+        run: |
+          curl -L --fail -o "$RUNNER_TEMP/templates.tpz" "${{ env.TEMPLATES_DOWNLOAD_URL }}"
+          unzip -o "$RUNNER_TEMP/templates.tpz" 'templates/android_source.zip' -d "$RUNNER_TEMP"
+          mkdir -p android/build
+          unzip -o "$RUNNER_TEMP/templates/android_source.zip" -d android/build
+
+      - name: Select JDK for Gradle (AAB uniquement)
+        if: github.event.inputs.build_aab == 'true'
+        run: |
+          if [ -n "${JAVA_HOME_17_X64:-}" ]; then
+            echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          else
+            echo "JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(which javac)")")")" >> "$GITHUB_ENV"
+          fi
+
+      - name: Export AAB (Play Store)
+        if: github.event.inputs.build_aab == 'true'
+        uses: firebelley/godot-export@v6.0.0
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        with:
+          godot_executable_download_url: ${{ env.GODOT_DOWNLOAD_URL }}
+          godot_export_templates_download_url: ${{ env.TEMPLATES_DOWNLOAD_URL }}
+          relative_project_path: ./
+          presets_to_export: "Android AAB (Play Store)"
+          relative_export_path: ${{ env.BUILD_DIR }}/NigerStreets.aab
+          export_debug: false
+          cache: true
+
+      - name: Rename AAB
+        if: github.event.inputs.build_aab == 'true'
+        run: |
+          AAB_FILE=$(find ${{ env.BUILD_DIR }} -type f -name '*.aab' | head -n 1)
+          if [ -z "$AAB_FILE" ]; then
+            echo "Aucun .aab trouvé sous ${{ env.BUILD_DIR }} — contenu :"
+            find ${{ env.BUILD_DIR }} -type f | head -30
+            exit 1
+          fi
+          cp "$AAB_FILE" "build_output/NigerStreets-${{ steps.version_info.outputs.tag_name }}.aab"
+          ls -lh build_output
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: NigerStreets-release-apk
-          path: build_output/*.apk
+          path: build_output/*
           retention-days: 90
 
       - name: Create GitHub Release
@@ -114,7 +166,7 @@ jobs:
           body: |
             ### Mise à jour Niger Streets
             ${{ steps.release_notes.outputs.notes }}
-          files: build_output/*.apk
+          files: build_output/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

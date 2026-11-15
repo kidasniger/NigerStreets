@@ -1,6 +1,6 @@
 extends CanvasLayer
 class_name PauseMenu
-# Ch31 - Menu pause + réglages (sensibilité caméra, volume, qualité graphique :
+# Ch31 - Menu pause + réglages (sensibilité caméra, volume, vibration, qualité graphique :
 # ombres + MSAA + échelle de rendu 3D).
 # Ouverture : Échap (PC), bouton Android « retour », ou bouton dessiné sous le radar.
 # L'ouverture met l'arbre du jeu en pause (get_tree().paused) ; cette couche reste
@@ -115,8 +115,12 @@ class PauseOverlay extends Control:
                 if menu.show_settings:
                         if _in(_retour_rect(), pos):
                                 menu.show_settings = false; menu._play_click(); queue_redraw()
+                        elif _in(_vibration_rect(), pos):
+                                _toggle_vibration()
                         elif _in(_quality_rect(), pos):
                                 _toggle_quality()
+                        elif _in(_default_rect(), pos):
+                                _reset_settings()
                         return
                 if _in(_btn_rect(0), pos):
                         menu._play_click(); menu.toggle()          # Reprendre
@@ -137,6 +141,19 @@ class PauseOverlay extends Control:
                 GameSettings.apply_shadows(get_tree())
                 GameSettings.apply_viewport(get_viewport())   # MSAA + échelle de rendu 3D
                 GameSettings.save_settings()
+                parent_menu._play_click()
+                queue_redraw()
+
+        func _toggle_vibration() -> void:
+                GameSettings.vibration_enabled = not GameSettings.vibration_enabled
+                GameSettings.save_settings()
+                parent_menu._play_click()
+                queue_redraw()
+
+        func _reset_settings() -> void:
+                GameSettings.reset_defaults()
+                GameSettings.apply_shadows(get_tree())
+                GameSettings.apply_viewport(get_viewport())   # ombres / MSAA / échelle revenus aux défauts
                 parent_menu._play_click()
                 queue_redraw()
 
@@ -162,7 +179,7 @@ class PauseOverlay extends Control:
 
         func _panel_rect() -> Rect2:
                 var w: float = minf(size.x * 0.92, 560.0)
-                var h: float = 372.0 if parent_menu.show_settings else 344.0
+                var h: float = 448.0 if parent_menu.show_settings else 344.0
                 return Rect2((size.x - w) * 0.5, (size.y - h) * 0.5, w, h)
 
         func _btn_rect(i: int) -> Rect2:
@@ -171,7 +188,7 @@ class PauseOverlay extends Control:
                 return Rect2(p.position.x + 28.0, y, p.size.x - 56.0, 52.0)
 
         func _slider_track_y(i: int) -> float:
-                return _panel_rect().position.y + 108.0 + float(i) * 66.0
+                return _panel_rect().position.y + 96.0 + float(i) * 60.0
 
         func _track_x0() -> float:
                 return _panel_rect().position.x + 28.0
@@ -179,13 +196,21 @@ class PauseOverlay extends Control:
         func _track_x1() -> float:
                 return _panel_rect().end.x - 110.0
 
+        func _vibration_rect() -> Rect2:
+                var p := _panel_rect()
+                return Rect2(p.position.x + 28.0, p.position.y + 204.0, p.size.x - 56.0, 52.0)
+
         func _quality_rect() -> Rect2:
                 var p := _panel_rect()
-                return Rect2(p.position.x + 28.0, p.position.y + 244.0, p.size.x - 56.0, 52.0)
+                return Rect2(p.position.x + 28.0, p.position.y + 264.0, p.size.x - 56.0, 52.0)
+
+        func _default_rect() -> Rect2:
+                var p := _panel_rect()
+                return Rect2(p.position.x + 28.0, p.position.y + 324.0, p.size.x - 56.0, 52.0)
 
         func _retour_rect() -> Rect2:
                 var p := _panel_rect()
-                return Rect2(p.position.x + 28.0, p.position.y + 308.0, p.size.x - 56.0, 52.0)
+                return Rect2(p.position.x + 28.0, p.position.y + 384.0, p.size.x - 56.0, 52.0)
 
         func _pause_btn_center() -> Vector2:
                 var left: float = 56.0 if OS.has_feature("mobile") else 14.0
@@ -212,12 +237,15 @@ class PauseOverlay extends Control:
                         var labels: Array[String] = ["Reprendre", "Réglages", "Menu principal", "Quitter l'application"]
                         for i in labels.size():
                                 _draw_btn(_btn_rect(i), labels[i], i == 0)
-                _text(Vector2(p.get_center().x, p.end.y - 14.0), "Échap / retour : fermer", 13, Color(1, 1, 1, 0.45), true)
+                        _text(Vector2(p.get_center().x, p.end.y - 18.0), "Version " + str(ProjectSettings.get_setting("application/config/version", "1.0")), 13, Color(1, 1, 1, 0.40), true)
+                _text(Vector2(p.get_center().x, p.end.y + 22.0), "Échap / retour : fermer", 13, Color(1, 1, 1, 0.45), true)
 
         func _draw_settings() -> void:
                 _slider("Sensibilité caméra", 0, GameSettings.camera_sensitivity, 0.3, 3.0, true)
                 _slider("Volume général", 1, GameSettings.master_volume, 0.0, 1.0, false)
+                _draw_btn(_vibration_rect(), "Vibration : %s" % ("activée" if GameSettings.vibration_enabled else "désactivée"), GameSettings.vibration_enabled)
                 _draw_btn(_quality_rect(), "Qualité : %s" % ("haute" if GameSettings.quality_high else "éco"), GameSettings.quality_high)
+                _draw_btn(_default_rect(), "Réglages par défaut", false)
                 _draw_btn(_retour_rect(), "Retour", false)
 
         func _slider(label: String, i: int, value: float, vmin: float, vmax: float, as_mult: bool) -> void:

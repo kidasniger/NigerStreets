@@ -3,16 +3,17 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://81m2n7if8i01"
+path.s3tc="res://.godot/imported/Chassis.005_baseColor.png-738d1bc1edf98e31811e08080f871de4.s3tc.ctex"
 path.etc2="res://.godot/imported/Chassis.005_baseColor.png-738d1bc1edf98e31811e08080f871de4.etc2.ctex"
 metadata={
-"imported_formats": ["etc2_astc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/vehicles/textures/Chassis.005_baseColor.png"
-dest_files=["res://.godot/imported/Chassis.005_baseColor.png-738d1bc1edf98e31811e08080f871de4.etc2.ctex"]
+dest_files=["res://.godot/imported/Chassis.005_baseColor.png-738d1bc1edf98e31811e08080f871de4.s3tc.ctex", "res://.godot/imported/Chassis.005_baseColor.png-738d1bc1edf98e31811e08080f871de4.etc2.ctex"]
 
 [params]
 

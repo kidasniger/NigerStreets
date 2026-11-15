@@ -19,6 +19,8 @@ static var master_volume: float = 1.0
 ## éco = sans ombres, MSAA off, rendu 3D à RENDER_SCALE_ECO. Remplace l'ancien
 ## réglage « ombres » (l'ancienne clé de sauvegarde est relue pour la compatibilité).
 static var quality_high: bool = false
+## Vibration aux chocs (mobile) : activée/désactivée dans le menu pause
+static var vibration_enabled: bool = true
 
 static func load_settings() -> void:
         if loaded:
@@ -35,6 +37,8 @@ static func load_settings() -> void:
                         quality_high = bool(cf.get_value("video", "quality_high", quality_high))
                 elif cf.has_section_key("video", "shadows_enabled"):   # ancienne clé (sauvegardes d'avant la case « Qualité »)
                         quality_high = bool(cf.get_value("video", "shadows_enabled", quality_high))
+                if cf.has_section_key("game", "vibration"):
+                        vibration_enabled = bool(cf.get_value("game", "vibration", true))
         apply_audio()
 
 static func save_settings() -> void:
@@ -42,7 +46,17 @@ static func save_settings() -> void:
         cf.set_value("game", "camera_sensitivity", camera_sensitivity)
         cf.set_value("audio", "master_volume", master_volume)
         cf.set_value("video", "quality_high", quality_high)
+        cf.set_value("game", "vibration", vibration_enabled)
         cf.save(SAVE_PATH)
+
+## Remet tous les réglages à leurs valeurs par défaut (bouton « Réglages par défaut » du menu pause)
+static func reset_defaults() -> void:
+        camera_sensitivity = 1.0
+        master_volume = 1.0
+        quality_high = not OS.has_feature("mobile")   # même défaut qu'au premier lancement
+        vibration_enabled = true
+        save_settings()
+        apply_audio()
 
 static func apply_audio() -> void:
         var bus: int = AudioServer.get_bus_index("Master")

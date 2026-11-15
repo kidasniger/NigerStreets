@@ -3,16 +3,17 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bdut85pc67asd"
+path.s3tc="res://.godot/imported/LightGeo.001_baseColor.png-58ca9e9ed490764d79178a4d9e9dfbe5.s3tc.ctex"
 path.etc2="res://.godot/imported/LightGeo.001_baseColor.png-58ca9e9ed490764d79178a4d9e9dfbe5.etc2.ctex"
 metadata={
-"imported_formats": ["etc2_astc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/vehicles/textures/LightGeo.001_baseColor.png"
-dest_files=["res://.godot/imported/LightGeo.001_baseColor.png-58ca9e9ed490764d79178a4d9e9dfbe5.etc2.ctex"]
+dest_files=["res://.godot/imported/LightGeo.001_baseColor.png-58ca9e9ed490764d79178a4d9e9dfbe5.s3tc.ctex", "res://.godot/imported/LightGeo.001_baseColor.png-58ca9e9ed490764d79178a4d9e9dfbe5.etc2.ctex"]
 
 [params]
 

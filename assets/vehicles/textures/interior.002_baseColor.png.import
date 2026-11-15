@@ -3,16 +3,17 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dhgrh405ylluh"
+path.s3tc="res://.godot/imported/interior.002_baseColor.png-fe4c267a928d615e34de94a737598d2e.s3tc.ctex"
 path.etc2="res://.godot/imported/interior.002_baseColor.png-fe4c267a928d615e34de94a737598d2e.etc2.ctex"
 metadata={
-"imported_formats": ["etc2_astc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/vehicles/textures/interior.002_baseColor.png"
-dest_files=["res://.godot/imported/interior.002_baseColor.png-fe4c267a928d615e34de94a737598d2e.etc2.ctex"]
+dest_files=["res://.godot/imported/interior.002_baseColor.png-fe4c267a928d615e34de94a737598d2e.s3tc.ctex", "res://.godot/imported/interior.002_baseColor.png-fe4c267a928d615e34de94a737598d2e.etc2.ctex"]
 
 [params]
 

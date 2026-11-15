@@ -1,12 +1,11 @@
 extends Control
 # Niger Streets - Écran titre
 # Décor 3D réel (monument texturé, asphalte, silhouettes de ville, coucher de soleil, brume, glow)
-# en caméra orbitale + logo avec reflet + braises lumineuses + vignette + barre de chargement.
+# en caméra orbitale + braises lumineuses + vignette + barre de chargement.
 # Le monde est chargé en arrière-plan PENDANT l'animation, puis fondu vers le jeu.
 
 const NEXT_SCENE := "res://scenes/world.tscn"
 const ROUNDABOUT := "res://assets/environment/rond-point-elf.glb"
-const LOGO := "res://assets/branding/logo.png"
 const ASPHALT := "res://assets/textures/asphalt.png"
 const BG_COLOR := Color(0.025, 0.035, 0.06, 1.0)
 const GOLD := Color(1.0, 0.72, 0.20, 1.0)
@@ -19,15 +18,6 @@ const GOLD := Color(1.0, 0.72, 0.20, 1.0)
 @export var orbit_radius: float = 17.0
 @export var orbit_height: float = 3.4
 @export var orbit_speed: float = 0.07
-
-const SHINE_SHADER := """
-shader_type canvas_item;
-uniform float sweep = -0.5;
-void fragment() {
-        float band = smoothstep(0.14, 0.0, abs((UV.x + UV.y * 0.35) - sweep));
-        COLOR.rgb += vec3(1.0, 0.92, 0.72) * band * 0.6 * COLOR.a;
-}
-"""
 
 class LoadBar extends Control:
         const BAR_GOLD := Color(1.0, 0.72, 0.20, 1.0)
@@ -49,8 +39,6 @@ var cam: Camera3D
 var shade: TextureRect
 var vignette: TextureRect
 var embers: CPUParticles2D
-var logo: TextureRect
-var shine_mat: ShaderMaterial
 var loadbar: LoadBar
 var status: Label
 var prompt: Label
@@ -68,7 +56,6 @@ var _ready_time: float = 0.0
 var _t: float = 0.0
 var _orbit: float = 0.6
 var _dolly: float = 0.0
-var _portrait: bool = false
 var _mon_done: bool = false
 
 
@@ -180,21 +167,6 @@ func _build() -> void:
         add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
         embers.material = add_mat
         add_child(embers)
-
-        # Logo + reflet
-        logo = TextureRect.new()
-        if ResourceLoader.exists(LOGO):
-                logo.texture = load(LOGO) as Texture2D
-        logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-        logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-        logo.modulate.a = 0.0
-        var sh := Shader.new()
-        sh.code = SHINE_SHADER
-        shine_mat = ShaderMaterial.new()
-        shine_mat.shader = sh
-        shine_mat.set_shader_parameter("sweep", -0.5)
-        logo.material = shine_mat
-        _add(logo)
 
         loadbar = LoadBar.new()
         loadbar.modulate.a = 0.0
@@ -376,33 +348,11 @@ func _update_camera(delta: float) -> void:
         var r: float = orbit_radius - 3.0 * _dolly
         var pos := Vector3(cos(_orbit) * r, orbit_height + sin(_t * 0.45) * 0.12, sin(_orbit) * r)
         cam.position = pos
-        var center := Vector3(0.0, 5.0, 0.0)
-        var fwd: Vector3 = (center - pos).normalized()
-        var right: Vector3 = fwd.cross(Vector3.UP).normalized()
-        var vs: Vector2 = get_viewport_rect().size
-        var aspect: float = vs.x / maxf(vs.y, 1.0)
-        var half_w: float = tan(deg_to_rad(cam.fov * 0.5)) * r * aspect
-        # Paysage : le monument passe à droite pour laisser la place au logo ; portrait : il descend
-        var shift: float = 0.0 if _portrait else 0.36 * half_w
-        var up_off: float = 3.5 if _portrait else 0.0
-        cam.look_at(center - right * shift + Vector3(0.0, up_off, 0.0), Vector3.UP)
+        cam.look_at(Vector3(0.0, 5.0, 0.0), Vector3.UP)   # monument centré (le logo du lancement a été retiré)
 
 
 func _layout() -> void:
         var vs: Vector2 = get_viewport_rect().size
-        _portrait = vs.x < vs.y * 1.1
-        var ls: float
-        var c: Vector2
-        if _portrait:
-                ls = minf(vs.x * 0.86, vs.y * 0.5)
-                c = Vector2(vs.x * 0.5, vs.y * 0.30)
-        else:
-                ls = minf(vs.y * 0.80, vs.x * 0.46)
-                c = Vector2(vs.x * 0.27, vs.y * 0.46)
-        logo.size = Vector2(ls, ls)
-        logo.position = c - logo.size * 0.5
-        logo.pivot_offset = logo.size * 0.5
-
         var u: float = minf(vs.y, vs.x * 0.5625)
         loadbar.size = Vector2(vs.x * 0.34, 20.0)
         loadbar.position = Vector2((vs.x - loadbar.size.x) * 0.5, vs.y * 0.92)
@@ -425,10 +375,6 @@ func _play_intro() -> void:
         var tw: Tween = _tween
         tw.tween_property(fade, "color:a", 0.0, 1.0)
         tw.tween_property(self, "_dolly", 1.0, 7.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-        logo.scale = Vector2(0.88, 0.88)
-        tw.tween_property(logo, "modulate:a", 1.0, 0.9).set_delay(0.7)
-        tw.tween_property(logo, "scale", Vector2.ONE, 1.1).set_delay(0.7).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-        tw.tween_property(shine_mat, "shader_parameter/sweep", 1.5, 1.2).set_delay(1.9)
         tw.tween_property(loadbar, "modulate:a", 1.0, 0.5).set_delay(1.2)
         tw.tween_property(status, "modulate:a", 1.0, 0.5).set_delay(1.2)
         tw.tween_callback(func() -> void: _intro_done = true).set_delay(2.6)
@@ -438,9 +384,6 @@ func _process(delta: float) -> void:
         _t += delta
         _poll_monument()
         _update_camera(delta)
-        if _intro_done and logo.modulate.a >= 0.99:
-                var pulse: float = 1.0 + 0.012 * sin(_t * 1.6)
-                logo.scale = Vector2(pulse, pulse)
 
         # Progression du chargement en arrière-plan
         if not _loaded:

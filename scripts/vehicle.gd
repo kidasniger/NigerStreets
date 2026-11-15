@@ -640,8 +640,8 @@ func _on_body_hit(_body: Node) -> void:
         if impact < 6.0: return
         _snd_hit.volume_db = lerpf(-6.0, 6.0, clampf((impact - 6.0) / 14.0, 0.0, 1.0))
         _snd_hit.play()
-        if OS.has_feature("mobile"):
-                Input.vibrate_handheld(60 + int(clampf((impact - 6.0) / 14.0, 0.0, 1.0) * 80.0))   # retour tactile dosé par la violence du choc (60-140 ms)
+        if OS.has_feature("mobile") and GameSettings.vibration_enabled:
+                Input.vibrate_handheld(60 + int(clampf((impact - 6.0) / 14.0, 0.0, 1.0) * 80.0))   # retour tactile dosé par la violence du choc (60-140 ms), réglable dans la pause
         _hit_cooldown = 0.6
 
 func _update_audio(delta: float) -> void:
