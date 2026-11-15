@@ -54,10 +54,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    env:
-      GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
-      GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
-      GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -78,6 +74,10 @@ jobs:
           relative_export_path: ${{ env.BUILD_DIR }}/NigerStreets-release.aab
           export_debug: false
           cache: true
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
@@ -99,10 +99,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    env:
-      GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
-      GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
-      GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -123,6 +119,10 @@ jobs:
           relative_export_path: ${{ env.BUILD_DIR }}/NigerStreets-release.apk
           export_debug: false
           cache: true
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
