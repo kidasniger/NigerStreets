@@ -420,6 +420,8 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+        if UpdateChecker.popup_open:
+                return   # popup de mise à jour affichée : ne pas démarrer le jeu à son insu
         var pressed: bool = false
         if event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed:
                 pressed = true

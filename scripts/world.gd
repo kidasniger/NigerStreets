@@ -61,7 +61,6 @@ func _ready() -> void:
         if build_trees: _build_trees()
         # Spawn des véhicules APRÈS que tout soit dans l'arbre
         call_deferred("_spawn_vehicles")
-        _add_credits()
         _add_ambience()
         call_deferred("_add_pause_menu")   # en dernier enfant : son _input est appelé avant celui du joueur
 
@@ -77,24 +76,6 @@ func _add_ambience() -> void:
         player.volume_db = -10.0
         add_child(player)
         player.play()
-
-## Crédits CC-BY affichés en petit en haut de l'écran
-func _add_credits() -> void:
-        var layer := CanvasLayer.new()
-        layer.name = "Credits"
-        layer.layer = 5
-        add_child(layer)
-        var label := Label.new()
-        label.text = "Hennessy Vehnom GT 2010 - Eyasu Biyaylgn (CC-BY 4.0)"
-        label.add_theme_font_size_override("font_size", 11)
-        label.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
-        label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-        label.add_theme_constant_override("outline_size", 3)
-        label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-        label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-        label.offset_top = 40.0
-        label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        layer.add_child(label)
 
 func _create_materials() -> void:
         # Les textures gardent leurs proportions quand on élargit la route

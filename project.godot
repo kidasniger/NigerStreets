@@ -24,6 +24,10 @@ boot_splash/bg_color=Color(0.025, 0.035, 0.06, 1)
 config/icon="res://icon.png"
 boot_splash/show_image=false
 
+[autoload]
+
+UpdateChecker="*res://scripts/update_checker.gd"
+
 [display]
 
 window/size/viewport_width=1280
@@ -31,6 +35,7 @@ window/size/viewport_height=720
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [rendering]
 
