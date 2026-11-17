@@ -44,6 +44,29 @@ var road_arm_material: StandardMaterial3D
 var _rng := RandomNumberGenerator.new()
 var _building_rects: Array[Rect2] = []
 var _building_count: int = 0
+
+## Modèles 3D de bâtiments de Zinder (glTF générés) : boutiques 1 étage ×2,
+## immeubles 2 étages ×2, Birni ×2. Empreinte (L×P) et hauteur du mur à l'échelle 1.
+const BUILDING_SCENE_PATHS: Array[String] = [
+        "res://assets/environment/buildings/shop_creme_vert.glb",
+        "res://assets/environment/buildings/shop_rose_rouge.glb",
+        "res://assets/environment/buildings/etage_sable.glb",
+        "res://assets/environment/buildings/etage_blanc.glb",
+        "res://assets/environment/buildings/birni_ocre.glb",
+        "res://assets/environment/buildings/birni_fonce.glb",
+]
+const BUILDING_SIZES: Array[Vector2] = [
+        Vector2(8.0, 7.0), Vector2(8.0, 7.0), Vector2(8.0, 7.0),
+        Vector2(8.0, 7.0), Vector2(7.0, 9.0), Vector2(7.0, 9.0),
+]
+const BUILDING_HEIGHTS: Array[float] = [4.2, 4.2, 7.2, 7.2, 5.5, 5.5]
+var _building_scenes: Array[PackedScene] = []
+
+## Charge les modèles GLB disponibles (chemins manquants ignorés : repli sur les boîtes)
+func _load_building_scenes() -> void:
+        for p in BUILDING_SCENE_PATHS:
+                if ResourceLoader.exists(p):
+                        _building_scenes.append(load(p) as PackedScene)
 var _low_facades: Array[StandardMaterial3D] = []    # façades 1 étage (boutique + muret)
 var _high_facades: Array[StandardMaterial3D] = []   # façades 2 étages (boutique + étage fenêtres)
 var _birni_facades: Array[StandardMaterial3D] = []  # façades terre ocre d'inspiration Birni
@@ -507,18 +530,49 @@ func _create_building_materials() -> void:
         _roof_material.roughness = 0.95
 
 func _add_building(center_xz: Vector2, footprint: Vector2, height: float) -> void:
+        _building_count += 1
+        var body := StaticBody3D.new()
+        body.name = "Building%d" % _building_count   # nom unique (Godot renomme sinon en @StaticBody3D@N)
+        body.collision_layer = 1
+        body.position = Vector3(center_xz.x, 0.0, center_xz.y)   # origine des modèles au niveau du sol
+        add_child(body)
+        if _building_scenes.size() > 0:
+                _add_model_building(body, footprint)
+        else:
+                _add_box_building(body, footprint, height)
+        _building_rects.append(Rect2(center_xz - footprint * 0.5, footprint))
+
+## Vrai bâtiment 3D (glTF) : orienté au hasard, étiré pour remplir exactement l'empreinte demandée
+func _add_model_building(body: StaticBody3D, footprint: Vector2) -> void:
+        var idx := _rng.randi() % _building_scenes.size()
+        var inst: Node3D = _building_scenes[idx].instantiate()
+        var rot_steps := _rng.randi_range(0, 3)
+        var model_size: Vector2 = BUILDING_SIZES[idx]
+        if rot_steps % 2 == 1:
+                model_size = Vector2(model_size.y, model_size.x)   # modèle tourné : axes échangés
+        var sx := footprint.x / model_size.x
+        var sz := footprint.y / model_size.y
+        var sy := (sx + sz) * 0.5
+        var h: float = BUILDING_HEIGHTS[idx] * sy
+        inst.rotation.y = float(rot_steps) * PI * 0.5
+        inst.scale = Vector3(sx, sy, sz)
+        body.add_child(inst)
+        var shape := BoxShape3D.new()
+        shape.size = Vector3(footprint.x, h, footprint.y)
+        var collision := CollisionShape3D.new()
+        collision.shape = shape
+        collision.position = Vector3(0.0, h * 0.5, 0.0)
+        body.add_child(collision)
+
+## Bâtiment texturé simple (repli si les modèles GLB sont absents)
+func _add_box_building(body: StaticBody3D, footprint: Vector2, height: float) -> void:
         var mat: StandardMaterial3D
         if _rng.randf() < 0.25:
                 mat = _birni_facades[_rng.randi() % _birni_facades.size()]   # quartier Birni
         else:
                 var pool: Array[StandardMaterial3D] = _low_facades if height < 6.0 else _high_facades
                 mat = pool[_rng.randi() % pool.size()]
-        var body := StaticBody3D.new()
-        _building_count += 1
-        body.name = "Building%d" % _building_count   # nom unique (Godot renomme sinon en @StaticBody3D@N)
-        body.collision_layer = 1
-        body.position = Vector3(center_xz.x, height * 0.5, center_xz.y)
-        add_child(body)
+        body.position.y = height * 0.5
         var wall_mesh := BoxMesh.new()
         wall_mesh.size = Vector3(footprint.x, height, footprint.y)
         var wall_instance := MeshInstance3D.new()
@@ -552,9 +606,9 @@ func _add_building(center_xz: Vector2, footprint: Vector2, height: float) -> voi
         var collision := CollisionShape3D.new()
         collision.shape = shape
         body.add_child(collision)
-        _building_rects.append(Rect2(center_xz - footprint * 0.5, footprint))
 
 func _build_buildings() -> void:
+        _load_building_scenes()
         _create_building_materials()
         var dirs: Array[Vector3] = [
                 Vector3(0.0, 0.0, -1.0), Vector3(0.0, 0.0, 1.0),
