@@ -58,9 +58,9 @@ jobs:
         id: release_notes
         shell: bash
         run: |
-          # Le corps du commit courant sert de notes de release (orienté changements utilisateur),
-          # comme dans le système MusicPro.
-          NOTES=$(git log -1 --pretty=format:'%b' | sed '/^[[:space:]]*$/d')
+          # Corps du dernier commit « feature » pour les notes de release ; les commits
+          # de correction CI sont ignorés pour ne pas masquer les changements utilisateur.
+          NOTES=$(git log -1 --invert-match --grep='^Correction CI' --pretty=format:'%b' | sed '/^[[:space:]]*$/d')
           if [ -z "$NOTES" ]; then
             NOTES=$(git log -1 --pretty=format:'%s')
           fi
