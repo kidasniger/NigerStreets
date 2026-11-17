@@ -34,22 +34,12 @@ cp "$ROOT/android_plugin/UpdateInstaller.java" "$SRC_DIR/UpdateInstaller.java"
 sed -i "s/^package .*/package $PKG;/" "$SRC_DIR/UpdateInstaller.java"
 META="$PKG.UpdateInstaller"
 
-# 2) Manifeste : permission installation + meta-data plugin v2 (idempotent)
-python3 - "$MANIFEST" "$META" <<'PY'
-import re, sys
-path, meta = sys.argv[1], sys.argv[2]
-xml = open(path, encoding="utf-8").read()
-if "REQUEST_INSTALL_PACKAGES" not in xml:
-    xml = xml.replace("<application", '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application', 1)
-tag = f'<meta-data android:name="org.godotengine.plugin.v2.UpdateInstaller" android:value="{meta}" />'
-if "org.godotengine.plugin.v2.UpdateInstaller" not in xml:
-    m = re.search(r"<application[^>]*>", xml)
-    if m is None:
-        sys.exit("balise <application> introuvable")
-    xml = xml[:m.end()] + "\n        " + tag + xml[m.end():]
-open(path, "w", encoding="utf-8").write(xml)
-print("manifeste patché :", meta)
-PY
+# 2) Manifeste : PLUS AUCUN PATCH ICI — Godot écrit son propre manifeste complet
+#    (src/release/AndroidManifest.xml) à chaque export et écraserait les patchs.
+#    - meta-data org.godotengine.plugin.v2.UpdateInstaller : injectée par
+#      l'export plugin addons/niger_streets_export (project.godot > editor_plugins)
+#    - permission REQUEST_INSTALL_PACKAGES : export_presets.cfg
+#      > permissions/custom_permissions
 
 # 3) La lib Godot doit être une dépendance du module (le template l'a déjà)
 if grep -q 'godot-lib' "$APP_GRADLE"; then

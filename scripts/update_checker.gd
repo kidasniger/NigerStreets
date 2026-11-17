@@ -23,6 +23,7 @@ var _dl_http: HTTPRequest = null
 var _msg: Label = null
 var _progress: Label = null
 var _buttons_box: HBoxContainer = null
+var _manual_cb := Callable()   # résultat d'une vérification manuelle (bouton des réglages)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS   # la progression doit vivre même en pause
@@ -37,9 +38,24 @@ func _process(_delta: float) -> void:
 		else:
 			_progress.text = "Téléchargement… %d Mo" % (done / 1048576)
 
+## Vérification manuelle (bouton « Rechercher les mises à jour » des réglages).
+## Callback appelé avec un message de statut : chaîne vide si une mise à jour
+## existe (la popup d'installation s'ouvre à la place).
+func check_manual(on_done: Callable) -> void:
+	if popup_open or _http != null:
+		if on_done.is_valid():
+			on_done.call("" if popup_open else "Une vérification est déjà en cours…")
+		return
+	_manual_cb = on_done
+	_check()
+
 func _check() -> void:
+	# Comme MusicPro : le fichier APK d'une installation précédente est supprimé
+	# (cleanup) avant chaque vérification/téléchargement pour libérer le stockage.
+	_delete_old_apk()
 	var local_build: int = _build_number(str(ProjectSettings.get_setting("application/config/version", "1.0")))
 	if local_build <= 0:
+		_finish_manual("Vérification impossible : numéro de build inconnu (éditeur).")
 		return   # version d'éditeur sans numéro de build : rien à vérifier
 	_http = HTTPRequest.new()
 	_http.timeout = 10.0
@@ -50,7 +66,20 @@ func _check() -> void:
 		"User-Agent: NigerStreets-UpdateCheck",
 	])
 	if _http.request(API_URL, headers) != OK:
+		_finish_manual("Vérification impossible : connexion Internet requise.")
 		_cleanup()
+
+## Supprime l'APK téléchargé par une installation précédente (file dans user://)
+func _delete_old_apk() -> void:
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		return
+	if dir.file_exists("update.apk"):
+		dir.remove("update.apk")
+	if dir.dir_exists("updates"):
+		for f in DirAccess.get_files_at("user://updates"):
+			dir.remove("updates/" + f)
+		dir.remove("updates")
 
 func _on_response(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	var remote_build: int = 0
@@ -74,7 +103,17 @@ func _on_response(result: int, response_code: int, _headers: PackedStringArray, 
 	var local_build: int = _build_number(str(ProjectSettings.get_setting("application/config/version", "1.0")))
 	if remote_build > local_build and not apk_url.is_empty():
 		_show_popup(tag, apk_url, local_build, size_mb)
+		_finish_manual("Nouvelle version %s trouvée" % tag)
+	else:
+		_finish_manual("Vous avez déjà la dernière version (b%d)" % local_build if response_code == 200 else "Vérification impossible : connexion Internet requise.")
 	_cleanup()
+
+## Termine une vérification manuelle avec un message (auto-check : callback vide)
+func _finish_manual(msg: String) -> void:
+	if _manual_cb.is_valid():
+		var cb := _manual_cb
+		_manual_cb = Callable()
+		cb.call(msg)
 
 ## Extrait le numéro de build d'une chaîne « 1.0-b12 » ou « v1.0-b12 » (0 si absent/invalide)
 func _build_number(version: String) -> int:
@@ -223,6 +262,7 @@ func _on_install_pressed() -> void:
 func _begin_download() -> void:
 	if _msg != null:
 		_msg.visible = false
+	_delete_old_apk()   # jamais deux APK en stock (suppression du fichier après installation, comme MusicPro)
 	_progress.text = "Téléchargement… 0 %"
 	_progress.visible = true
 	_set_buttons([])

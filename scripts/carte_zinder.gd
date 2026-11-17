@@ -14,8 +14,9 @@ class_name CarteZinder
 # Interactions : molette souris ou pincement à deux doigts pour zoomer/dézoomer
 # (limites min/max, zoom centré sur le point touché), glisser à un doigt ou à la
 # souris pour se déplacer. Épaisseurs des traits et tailles des textes constantes
-# à l'écran quel que soit le zoom (traits cuits en espace écran, transform du
-# canvas item limité à une translation).
+# à l'écran quel que soit le zoom (traits cuits en espace écran ; re-cuits UNE fois
+# en fin de geste de zoom pour rester fluide, l'échelle du canvas item suit entre
+# temps le pincement).
 # API conservée : open(), close(), is_open(), close_current(), titre, bouton
 # Fermer, pause du jeu, bouton retour Android qui ferme la carte d'abord (guard
 # dans pause_menu.gd), flèche du Nord. L'ancienne image satellite
@@ -72,9 +73,10 @@ var _buildings_mesh: ArrayMesh = null
 var _strokes: Array[Dictionary] = []      # {pts: PackedVector2Array (monde, m), cls: int (-1 = eau)}
 var _water_areas: Array[PackedVector2Array] = []
 var _cam := Vector2.ZERO                  # centre caméra en mètres
-var _zoom := 0.1                          # pixels par mètre (zoom cuit)
+var _zoom := 0.1                          # pixels par mètre (zoom courant)
 var _zoom_min := 0.02
 var _zoom_max := ZOOM_MAX
+var _strokes_zoom := 0.1                  # zoom auquel les traits ont été cuits (re-cuits en fin de geste)
 var _pulse := 0.0
 var _player_world := Vector2.ZERO         # à brancher sur la vraie position du joueur plus tard
 var _touches := {}                        # index tactile → position locale
@@ -275,10 +277,11 @@ func _load_data() -> bool:
 	if _buildings_mesh != null:
 		RenderingServer.canvas_item_add_mesh(_ci_buildings, _buildings_mesh.get_rid(), Transform2D(), BUILDING_COLOR)
 
-	_bake_strokes()
-
-	# vue initiale : ville centrée sur l'origine (carrefour central)
+	# vue initiale : ville centrée sur l'origine (carrefour central). Le zoom est
+	# déterminé AVANT la cuisson des traits, qui en dépend.
 	_compute_view_limits()
+	_strokes_zoom = _zoom
+	_bake_strokes()
 	_apply_view()
 	var ms := (Time.get_ticks_usec() - t0) / 1000
 	print("CarteZinder : %d traits, %d bâtiments, maillage+chargement %d ms" % [_strokes.size(), bld_data.size(), ms])
@@ -373,8 +376,11 @@ func _apply_view() -> void:
 	var off := _area_center() - _cam * _zoom
 	RenderingServer.canvas_item_set_transform(_ci_water, Transform2D(Vector2(_zoom, 0), Vector2(0, _zoom), off))
 	RenderingServer.canvas_item_set_transform(_ci_buildings, Transform2D(Vector2(_zoom, 0), Vector2(0, _zoom), off))
-	# traits : translation seule → épaisseurs écran intactes
-	RenderingServer.canvas_item_set_transform(_ci_strokes, Transform2D(Vector2(1, 0), Vector2(0, 1), off))
+	# traits : cuits à _strokes_zoom. Hors geste le facteur vaut 1 (translation seule
+	# → épaisseurs écran constantes) ; pendant un pincement il suit le zoom pour
+	# éviter une re-cuisson par frame (trop lourde sur mobile) — re-cuits en fin de geste.
+	var s := _zoom / _strokes_zoom
+	RenderingServer.canvas_item_set_transform(_ci_strokes, Transform2D(Vector2(s, 0), Vector2(0, s), off))
 	if _overlay != null:
 		_overlay.queue_redraw()
 
@@ -383,7 +389,15 @@ func _zoom_at(p: Vector2, factor: float) -> void:
 	_zoom = clampf(_zoom * factor, _zoom_min, _zoom_max)
 	_cam = wa - (p - _area_center()) / _zoom
 	_apply_view()
+	_strokes_zoom = _zoom
 	_bake_strokes()
+
+## Fin de geste de zoom : re-cuit les traits au zoom final (une seule fois, pas
+## par frame pendant le pincement — c'est ce qui faisait ralentir/bloquer le jeu)
+func _end_gesture_bake() -> void:
+	if _ci_strokes.is_valid() and not is_equal_approx(_zoom, _strokes_zoom):
+		_strokes_zoom = _zoom
+		_bake_strokes()
 
 func _pan(delta: Vector2) -> void:
 	_cam -= delta / _zoom
@@ -393,6 +407,7 @@ func _on_area_resized() -> void:
 	if _loaded:
 		_zoom = clampf(_zoom, _zoom_min, _zoom_max)
 		_apply_view()
+		_end_gesture_bake()
 
 # ------------------------------------------------------------------ entrées
 
@@ -405,6 +420,7 @@ func _on_map_input(event: InputEvent) -> void:
 		else:
 			_touches.erase(event.index)
 			_pinch_dist = -1.0
+			_end_gesture_bake()   # doigt levé : fin de geste → re-cuisson au zoom final
 		return
 	if event is InputEventScreenDrag:
 		_touches[event.index] = event.position
@@ -416,8 +432,7 @@ func _on_map_input(event: InputEvent) -> void:
 				var wa := _screen_to_world(_pinch_mid)
 				_zoom = clampf(_zoom * (d / _pinch_dist), _zoom_min, _zoom_max)
 				_cam = wa - (mid - _area_center()) / _zoom
-				_apply_view()
-				_bake_strokes()
+				_apply_view()   # PAS de cuisson ici : elle ne se fait qu'à la fin du geste
 			_pinch_dist = d
 			_pinch_mid = mid
 		else:
