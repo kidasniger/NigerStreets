@@ -28,5 +28,10 @@ func _plugin_class() -> String:
 					return pkg + ".UpdateInstaller"
 	return DEFAULT_PACKAGE + ".UpdateInstaller"
 
+## Sans ce hook, EditorExportPlugin::supports_platform renvoie faux par défaut
+## et les hooks de manifeste ne sont jamais interrogés.
+func _supports_platform(_platform) -> bool:
+	return true
+
 func _get_android_manifest_application_element_contents(_platform, _debug) -> String:
 	return "\n        <meta-data android:name=\"org.godotengine.plugin.v2.UpdateInstaller\" android:value=\"%s\" />\n" % _plugin_class()
