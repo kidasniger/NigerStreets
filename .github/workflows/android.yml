@@ -78,9 +78,6 @@ jobs:
           grep -n '^version/' export_presets.cfg
           grep -n '^config/version' project.godot
 
-      - name: Setup Android SDK (build gradle)
-        uses: android-actions/setup-android@v3
-
       - name: Select JDK for Gradle
         run: |
           if [ -n "${JAVA_HOME_17_X64:-}" ]; then
