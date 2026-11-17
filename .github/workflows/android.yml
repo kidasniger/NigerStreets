@@ -60,7 +60,7 @@ jobs:
         run: |
           # Corps du dernier commit « feature » pour les notes de release ; les commits
           # de correction CI sont ignorés pour ne pas masquer les changements utilisateur.
-          NOTES=$(git log -1 --invert-match --grep='^Correction CI' --pretty=format:'%b' | sed '/^[[:space:]]*$/d')
+          NOTES=$(git log -1 --invert-grep --grep='^Correction CI' --pretty=format:'%b' | sed '/^[[:space:]]*$/d')
           if [ -z "$NOTES" ]; then
             NOTES=$(git log -1 --pretty=format:'%s')
           fi
