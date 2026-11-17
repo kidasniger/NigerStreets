@@ -10,6 +10,7 @@ var _message: Label
 var _hint: Label
 var _prompt_label: Label
 var _radar: Radar
+var _carte: CarteZinder = null
 var _message_tween: Tween
 var _fps_timer: float = 0.0
 
@@ -24,6 +25,17 @@ func _ready() -> void:
         _radar.size = Vector2(160, 160)
         _radar.position = Vector2(left, 10.0)
         add_child(_radar)
+        # appui sur le radar → carte complète de Zinder
+        _radar.mouse_filter = Control.MOUSE_FILTER_STOP
+        _radar.gui_input.connect(_on_radar_input)
+
+        # --- ÉTIQUETTE « CARTE » SOUS LE RADAR ---
+        var map_hint := _make_label(14)
+        map_hint.text = "Carte"
+        map_hint.position = Vector2(left, 172.0)
+        map_hint.custom_minimum_size = Vector2(160.0, 18.0)
+        map_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        add_child(map_hint)
         
         # --- FPS ---
         _fps_label = _make_label(18)
@@ -49,7 +61,7 @@ func _ready() -> void:
         
         if not mobile:
                 _hint = _make_label(15)
-                _hint.text = "ZQSD : bouger   Souris : caméra   E : Entrer/Sortir voiture   Espace : sauter   Maj : courir\nEn voiture : ZQSD conduire   Clic/F : klaxon   Espace : frein à main   V : 1re/3e personne   F3 : FPS   Échap : pause"
+                _hint.text = "ZQSD : bouger   Souris : caméra   E : Entrer/Sortir voiture   Espace : sauter   Maj : courir\nEn voiture : ZQSD conduire   Clic/F : klaxon   Espace : frein à main   V : 1re/3e personne   F3 : FPS   Échap : pause\nTouchez le radar (en haut à gauche) : carte de Zinder"
                 _hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
                 _hint.grow_vertical = Control.GROW_DIRECTION_BEGIN
                 _hint.offset_left = 14.0
@@ -58,6 +70,25 @@ func _ready() -> void:
                 var fade: Tween = create_tween()
                 fade.tween_interval(12.0)
                 fade.tween_property(_hint, "modulate:a", 0.0, 1.5)
+        else:
+                show_message("Touchez le radar pour ouvrir la carte de Zinder", 3.5, 22)
+
+## Appui/tap sur le radar → ouvre la carte
+func _on_radar_input(event: InputEvent) -> void:
+        var tapped := false
+        if event is InputEventScreenTouch and event.pressed:
+                tapped = true
+        elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+                tapped = true
+        if tapped:
+                _open_carte()
+
+## Crée la carte au premier appel puis l'affiche (met le jeu en pause)
+func _open_carte() -> void:
+        if _carte == null:
+                _carte = CarteZinder.new()
+                add_child(_carte)
+        _carte.open()
 
 func _make_label(font_size: int) -> Label:
         var label: Label = Label.new()

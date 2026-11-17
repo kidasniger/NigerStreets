@@ -39,6 +39,9 @@ func _notification(what: int) -> void:
 
 ## Ouvre/ferme le menu et met l'arbre du jeu en pause
 func toggle() -> void:
+	if CarteZinder.is_open():
+		CarteZinder.close_current()   # retour Android / Échap : ferme d'abord la carte
+		return
 	open = not open
 	show_settings = false
 	get_tree().paused = open
