@@ -78,6 +78,25 @@ jobs:
           grep -n '^version/' export_presets.cfg
           grep -n '^config/version' project.godot
 
+      - name: Setup Android SDK (build gradle)
+        uses: android-actions/setup-android@v3
+
+      - name: Select JDK for Gradle
+        run: |
+          if [ -n "${JAVA_HOME_17_X64:-}" ]; then
+            echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          else
+            echo "JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(which javac)")")")" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Android build template + plugin UpdateInstaller
+        run: |
+          curl -L --fail -o "$RUNNER_TEMP/templates.tpz" "${{ env.TEMPLATES_DOWNLOAD_URL }}"
+          unzip -o "$RUNNER_TEMP/templates.tpz" 'templates/android_source.zip' -d "$RUNNER_TEMP"
+          mkdir -p android/build
+          unzip -o "$RUNNER_TEMP/templates/android_source.zip" -d android/build
+          bash scripts/setup_android_plugin.sh
+
       - name: Setup Godot and export APK (Release)
         uses: firebelley/godot-export@v6.0.0
         env:
@@ -109,10 +128,7 @@ jobs:
       - name: Install Android build template (AAB uniquement)
         if: github.event.inputs.build_aab == 'true'
         run: |
-          curl -L --fail -o "$RUNNER_TEMP/templates.tpz" "${{ env.TEMPLATES_DOWNLOAD_URL }}"
-          unzip -o "$RUNNER_TEMP/templates.tpz" 'templates/android_source.zip' -d "$RUNNER_TEMP"
-          mkdir -p android/build
-          unzip -o "$RUNNER_TEMP/templates/android_source.zip" -d android/build
+          bash scripts/setup_android_plugin.sh
 
       - name: Select JDK for Gradle (AAB uniquement)
         if: github.event.inputs.build_aab == 'true'

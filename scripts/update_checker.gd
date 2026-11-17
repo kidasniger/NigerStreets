@@ -2,21 +2,40 @@ extends Node
 # Niger Streets - Vérification automatique de mise à jour (autoload).
 # Au lancement (après CHECK_DELAY), interroge la dernière release GitHub et compare
 # le numéro de build (bNN) avec la version installée (config/version, remplie par la CI).
-# Si une version plus récente existe : popup dorée « Télécharger la mise à jour » qui
-# ouvre le navigateur sur l'APK signé (Android propose ensuite l'installation).
+# Si une version plus récente existe : popup dorée, TÉLÉCHARGEMENT DANS L'APPLI
+# (HTTPRequest avec barre de progression) puis installation via le plugin Android
+# UpdateInstaller (PackageInstaller, aucune sortie de l'application).
+# Repli navigateur si le plugin est absent (build sans gradle) ou si l'installation échoue.
 # Silencieux en cas d'absence de réseau, d'erreur API ou de version d'éditeur (sans bNN).
 
 const API_URL: String = "https://api.github.com/repos/kidasniger/NigerStreets/releases/latest"
 const CHECK_DELAY: float = 4.0
+const APK_SAVE_PATH: String = "user://update.apk"
+const APK_MIN_SIZE: int = 1048576   # un vrai APK fait ~43 Mo ; en dessous : téléchargement tronqué
 
 ## true tant qu'une popup de mise à jour est affichée (le splash ne doit pas démarrer le jeu)
 var popup_open: bool = false
 
 var _http: HTTPRequest = null
 var _popup_layer: CanvasLayer = null
+var _apk_url: String = ""
+var _dl_http: HTTPRequest = null
+var _msg: Label = null
+var _progress: Label = null
+var _buttons_box: HBoxContainer = null
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS   # la progression doit vivre même en pause
 	get_tree().create_timer(CHECK_DELAY).timeout.connect(_check)
+
+func _process(_delta: float) -> void:
+	if _progress != null and _dl_http != null:
+		var total: int = _dl_http.get_body_size()
+		var done: int = _dl_http.get_downloaded_bytes()
+		if total > 0:
+			_progress.text = "Téléchargement… %d %%" % (100 * done / total)
+		else:
+			_progress.text = "Téléchargement… %d Mo" % (done / 1048576)
 
 func _check() -> void:
 	var local_build: int = _build_number(str(ProjectSettings.get_setting("application/config/version", "1.0")))
@@ -70,12 +89,19 @@ func _cleanup() -> void:
 		_http.queue_free()
 		_http = null
 
+## Plugin Android « UpdateInstaller » (null si build sans gradle)
+func _get_installer_plugin() -> Object:
+	if Engine.has_singleton("UpdateInstaller"):
+		return Engine.get_singleton("UpdateInstaller")
+	return null
+
 # ------------------------------------------------------------------ popup
 
 func _show_popup(tag: String, apk_url: String, local_build: int, size_mb: int) -> void:
 	if popup_open:
 		return
 	popup_open = true
+	_apk_url = apk_url
 	_popup_layer = CanvasLayer.new()
 	_popup_layer.layer = 20
 	add_child(_popup_layer)
@@ -125,40 +151,139 @@ func _show_popup(tag: String, apk_url: String, local_build: int, size_mb: int) -
 
 	var size_txt: String = "" if size_mb <= 0 else ", %d Mo" % size_mb
 	var body := Label.new()
-	body.text = "Version %s disponible (installée : b%d%s).\n\nTélécharger et installer maintenant ?" % [tag, local_build, size_txt]
+	body.text = "Version %s disponible (installée : b%d%s).\n\nTéléchargement et installation directement dans l'application." % [tag, local_build, size_txt]
 	body.add_theme_font_size_override("font_size", 17)
 	body.add_theme_color_override("font_color", Color(1, 1, 1, 0.92))
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(body)
 
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 12)
-	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_child(buttons)
+	_msg = Label.new()
+	_msg.add_theme_font_size_override("font_size", 15)
+	_msg.add_theme_color_override("font_color", Color(1.0, 0.85, 0.55))
+	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_msg.visible = false
+	vbox.add_child(_msg)
 
-	var dl := Button.new()
-	dl.text = "Télécharger la mise à jour"
-	dl.custom_minimum_size = Vector2(0, 52)
-	dl.add_theme_font_size_override("font_size", 20)
-	_style_button(dl, true)
-	dl.pressed.connect(_install.bind(apk_url))
-	buttons.add_child(dl)
+	_progress = Label.new()
+	_progress.add_theme_font_size_override("font_size", 19)
+	_progress.add_theme_color_override("font_color", Color(1.0, 0.72, 0.20))
+	_progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_progress.visible = false
+	vbox.add_child(_progress)
 
-	var later := Button.new()
-	later.text = "Plus tard"
-	later.custom_minimum_size = Vector2(0, 52)
-	later.add_theme_font_size_override("font_size", 20)
-	_style_button(later, false)
-	later.pressed.connect(_close_popup)
-	buttons.add_child(later)
+	_buttons_box = HBoxContainer.new()
+	_buttons_box.add_theme_constant_override("separation", 12)
+	_buttons_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(_buttons_box)
 
-## Ouvre le navigateur sur l'APK signé : Android télécharge puis propose l'installation
-func _install(url: String) -> void:
-	OS.shell_open(url)
+	_set_buttons([
+		["Télécharger et installer", _on_install_pressed],
+		["Plus tard", _close_popup],
+	])
+
+## Remplace les boutons affichés (liste de paires [texte, callable]) ; le premier est accentué
+func _set_buttons(defs: Array) -> void:
+	for c in _buttons_box.get_children():
+		c.queue_free()
+	for i in range(defs.size()):
+		var d: Variant = defs[i]
+		var b := Button.new()
+		b.text = str(d[0])
+		b.custom_minimum_size = Vector2(0, 52)
+		b.add_theme_font_size_override("font_size", 18)
+		_style_button(b, i == 0)
+		b.pressed.connect(d[1])
+		_buttons_box.add_child(b)
+
+func _set_message(txt: String) -> void:
+	if _msg != null:
+		_msg.text = txt
+		_msg.visible = true
+
+# ------------------------------------------------------------------ flux d'installation
+
+func _on_install_pressed() -> void:
+	var plugin := _get_installer_plugin()
+	if plugin == null:
+		# build sans gradle : ancien comportement (navigateur)
+		OS.shell_open(_apk_url)
+		_close_popup()
+		return
+	if not plugin.canRequestInstall():
+		_set_message("Android demande l'autorisation d'installer des applications inconnues. Activez-la pour Niger Streets puis revenez ici.")
+		_set_buttons([
+			["Autoriser l'installation", func() -> void: plugin.openUnknownSourceSettings()],
+			["Télécharger quand même", _begin_download],
+			["Plus tard", _close_popup],
+		])
+		return
+	_begin_download()
+
+## Phase 1 : téléchargement de l'APK dans le stockage de l'appli, avec progression
+func _begin_download() -> void:
+	if _msg != null:
+		_msg.visible = false
+	_progress.text = "Téléchargement… 0 %"
+	_progress.visible = true
+	_set_buttons([])
+	_dl_http = HTTPRequest.new()
+	_dl_http.download_file = APK_SAVE_PATH
+	_dl_http.timeout = 600.0   # 43 Mo sur une connexion mobile lente
+	_dl_http.request_completed.connect(_on_download_completed)
+	add_child(_dl_http)
+	var headers: PackedStringArray = PackedStringArray(["User-Agent: NigerStreets-UpdateDownload"])
+	if _dl_http.request(_apk_url, headers) != OK:
+		_show_download_error()
+
+func _on_download_completed(result: int, response_code: int, _headers: PackedStringArray, _body: PackedByteArray) -> void:
+	var size := 0
+	var f := FileAccess.open(APK_SAVE_PATH, FileAccess.READ)
+	if f != null:
+		size = f.get_length()
+		f.close()
+	var ok := result == HTTPRequest.RESULT_SUCCESS and response_code == 200 and size >= APK_MIN_SIZE
+	_cleanup_dl()
+	if not ok:
+		_show_download_error()
+		return
+	# Phase 2 : installation par le plugin Android (confirmation système, sans navigateur)
+	var plugin := _get_installer_plugin()
+	if plugin != null:
+		var abs_path: String = ProjectSettings.globalize_path(APK_SAVE_PATH)
+		if plugin.installApk(abs_path):
+			_progress.visible = false
+			_set_message("Téléchargement terminé. Android vous demande de confirmer l'installation de la version %s." % _build_tag())
+			_set_buttons([["Fermer", _close_popup]])
+			return
+	# Repli : navigateur (l'installation ne s'est pas lancée)
+	OS.shell_open(_apk_url)
 	_close_popup()
+
+func _build_tag() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", ""))
+
+func _show_download_error() -> void:
+	_progress.visible = false
+	_set_message("Échec du téléchargement. Vérifiez votre connexion Internet.")
+	_set_buttons([
+		["Réessayer", _begin_download],
+		["Ouvrir dans le navigateur", func() -> void:
+			OS.shell_open(_apk_url)
+			_close_popup()],
+		["Plus tard", _close_popup],
+	])
+
+func _cleanup_dl() -> void:
+	if _dl_http != null:
+		_dl_http.queue_free()
+		_dl_http = null
 
 func _close_popup() -> void:
 	popup_open = false
+	_cleanup_dl()
+	_msg = null
+	_progress = null
+	_buttons_box = null
 	if _popup_layer != null:
 		_popup_layer.queue_free()
 		_popup_layer = null
@@ -181,5 +306,5 @@ func _style_button(b: Button, accent: bool) -> void:
 	b.add_theme_stylebox_override("pressed", pressed)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	b.add_theme_color_override("font_color", Color(0.06, 0.07, 0.09) if accent else Color(1, 1, 1, 0.95))
-	b.add_theme_color_override("font_hover_color", Color(0.06, 0.07, 0.09) if accent else Color(1, 1, 0.9, 1))
+	b.add_theme_color_override("font_hover_color", Color(0.06, 0.07, 0.09))
 	b.add_theme_color_override("font_pressed_color", Color(0.06, 0.07, 0.09))
