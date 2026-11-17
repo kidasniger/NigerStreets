@@ -1,34 +1,32 @@
 #!/usr/bin/env bash
 # Injecte le plugin UpdateInstaller (installation d'APK dans l'appli) dans le
-# template gradle Godot (android/build), généré juste avant par la CI.
-# - copie UpdateInstaller.kt à côté de GodotApp (même package)
-# - ajoute la permission REQUEST_INSTALL_PACKAGES et le meta-data plugin v2
-# - garantit la dépendance du module app vers :godot-library
+# template gradle Godot (android/build, projet mono-module), généré juste avant
+# par la CI. Structure attendue (Godot 4.7) :
+#   android/build/build.gradle                          (module app, unique)
+#   android/build/src/main/AndroidManifest.xml          (manifeste de l'application)
+#   android/build/src/main/java/com/godot/game/GodotApp.java
+#   android/build/libs/release/godot-lib.template_release.aar
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/android/build"
 
-MANIFEST="$(find "$BUILD_DIR" -maxdepth 4 -name AndroidManifest.xml | head -n 1)"
-if [ -z "$MANIFEST" ]; then
-    echo "ERREUR : AndroidManifest.xml introuvable sous $BUILD_DIR" >&2
-    exit 1
-fi
-APP_DIR="$(dirname "$MANIFEST")"
-GODOT_APP="$(find "$APP_DIR" -name 'GodotApp.kt' -o -name 'GodotApp.java' | head -n 1)"
-if [ -z "$GODOT_APP" ]; then
-    echo "ERREUR : GodotApp introuvable sous $APP_DIR" >&2
-    exit 1
-fi
+MANIFEST="$BUILD_DIR/src/main/AndroidManifest.xml"
+APP_GRADLE="$BUILD_DIR/build.gradle"
+for f in "$MANIFEST" "$APP_GRADLE"; do
+    [ -f "$f" ] || { echo "ERREUR : $f introuvable (template 4.7 attendu)" >&2; exit 1; }
+done
+GODOT_APP="$(find "$BUILD_DIR/src" -name 'GodotApp.java' | head -n 1)"
+[ -n "$GODOT_APP" ] || { echo "ERREUR : GodotApp.java introuvable" >&2; exit 1; }
 SRC_DIR="$(dirname "$GODOT_APP")"
 
-# 1) Copie du plugin dans le package de l'application
-PKG="$(grep -m1 -E '^[[:space:]]*package[[:space:]]' "$GODOT_APP" | sed -E 's/^[[:space:]]*package[[:space:]]+//; s/[[:space:]]*$//')"
-cp "$ROOT/android_plugin/UpdateInstaller.kt" "$SRC_DIR/UpdateInstaller.kt"
-sed -i "s/^package .*/package $PKG/" "$SRC_DIR/UpdateInstaller.kt"
+# 1) Copie du plugin (Java pur : aucune dépendance Kotlin) dans le package de l'app
+PKG="$(grep -m1 -E '^[[:space:]]*package[[:space:]]' "$GODOT_APP" | sed -E 's/^[[:space:]]*package[[:space:]]+//; s/;[[:space:]]*$//; s/[[:space:]]+$//')"
+cp "$ROOT/android_plugin/UpdateInstaller.java" "$SRC_DIR/UpdateInstaller.java"
+sed -i "s/^package .*/package $PKG;/" "$SRC_DIR/UpdateInstaller.java"
 META="$PKG.UpdateInstaller"
 
-# 2) Patch du manifeste : permission + meta-data plugin v2 (idempotent)
+# 2) Manifeste : permission installation + meta-data plugin v2 (idempotent)
 python3 - "$MANIFEST" "$META" <<'PY'
 import re, sys
 path, meta = sys.argv[1], sys.argv[2]
@@ -45,10 +43,12 @@ open(path, "w", encoding="utf-8").write(xml)
 print("manifeste patché :", meta)
 PY
 
-# 3) Dépendance godot-library pour le module app (si absente)
-if ! grep -q 'godot-library' "$APP_DIR/build.gradle"; then
-    sed -i 's/^dependencies {/dependencies {\n    implementation project(":godot-library")/' "$APP_DIR/build.gradle"
-    echo "dépendance :godot-library ajoutée"
+# 3) La lib Godot doit être une dépendance du module (le template l'a déjà)
+if grep -q 'godot-lib' "$APP_GRADLE"; then
+    echo "dépendance godot-lib présente"
+else
+    sed -i 's/^dependencies {/dependencies {\n    implementation files("libs\/release\/godot-lib.template_release.aar")/' "$APP_GRADLE"
+    echo "dépendance godot-lib ajoutée"
 fi
 
-echo "OK : plugin UpdateInstaller injecté dans $APP_DIR (package $PKG)"
+echo "OK : plugin UpdateInstaller injecté ($PKG.UpdateInstaller)"
