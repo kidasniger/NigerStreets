@@ -28,8 +28,8 @@ var road_arm_material: StandardMaterial3D
 @export var sidewalk_height: float = 0.12
 
 @export_category("Buildings")
-## Immeubles désactivés : la vraie ville (Zinder) est basse et ouverte. Mettre à true pour les remettre.
-@export var build_buildings: bool = false
+## Bâtiments bas de Zinder (1-2 étages, boutiques, quartier Birni) activés par défaut.
+@export var build_buildings: bool = true
 @export var building_setback: float = 5.0
 @export var building_spacing: float = 16.0
 @export var building_gap: float = 6.0
@@ -38,10 +38,15 @@ var road_arm_material: StandardMaterial3D
 @export var decor_seed: int = 31
 ## Arbres désactivés (aucun arbre dans la ville)
 @export var build_trees: bool = false
+## Rochers de granit de Zinder posés à l'horizon du plateau
+@export var build_rocks: bool = true
 
 var _rng := RandomNumberGenerator.new()
 var _building_rects: Array[Rect2] = []
-var _wall_materials: Array[StandardMaterial3D] = []
+var _building_count: int = 0
+var _low_facades: Array[StandardMaterial3D] = []    # façades 1 étage (boutique + muret)
+var _high_facades: Array[StandardMaterial3D] = []   # façades 2 étages (boutique + étage fenêtres)
+var _birni_facades: Array[StandardMaterial3D] = []  # façades terre ocre d'inspiration Birni
 var _roof_material: StandardMaterial3D
 var road_material: StandardMaterial3D
 var sidewalk_material: StandardMaterial3D
@@ -59,6 +64,7 @@ func _ready() -> void:
         _build_island_collision()
         if build_buildings: _build_buildings()
         if build_trees: _build_trees()
+        if build_rocks: _build_rocks()   # rochers de granit à l'horizon
         # Spawn des véhicules APRÈS que tout soit dans l'arbre
         call_deferred("_spawn_vehicles")
         _add_ambience()
@@ -394,39 +400,122 @@ func _setup_ground() -> void:
         if collision_node.shape is BoxShape3D:
                 (collision_node.shape as BoxShape3D).size = Vector3(ground_size, 0.2, ground_size)
 
-func _make_facade_texture(wall: Color) -> ImageTexture:
-        var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+## Mouchetis du plâtre : petites taches claires/sombres pour casser l'aplat des façades
+func _mottle(img: Image, base: Color, count: int) -> void:
+        for i in range(count):
+                var px := _rng.randi_range(0, 248)
+                var py := _rng.randi_range(0, 248)
+                var sz := _rng.randi_range(4, 10)
+                var c := base.darkened(_rng.randf_range(0.03, 0.09)) if _rng.randf() < 0.5 else base.lightened(_rng.randf_range(0.02, 0.07))
+                img.fill_rect(Rect2i(px, py, sz, sz), c)
+
+## Façade « boutique de Zinder » : muret en haut, rangée de fenêtres si 2 étages, store rayé,
+## vitrine, volet métallique et porte. Mappée par les UV natives du BoxMesh : une texture =
+## tout l'étage du bâtiment (haut de l'image = haut du mur).
+func _make_shop_facade(wall: Color, awning: Color, two_floors: bool) -> StandardMaterial3D:
+        var img := Image.create(256, 256, false, Image.FORMAT_RGB8)
         img.fill(wall)
-        var frame: Color = wall.darkened(0.25)
-        var glass: Color = Color(0.20, 0.30, 0.42)
-        for y in range(14, 48):
-                for x in range(16, 48):
-                        var on_frame: bool = x < 18 or x >= 46 or y < 16 or y >= 46
-                        img.set_pixel(x, y, frame if on_frame else glass)
+        _mottle(img, wall, 120)
+        var dark: Color = wall.darkened(0.22)
+        # muret du toit + corniche
+        img.fill_rect(Rect2i(0, 0, 256, 30), wall.lightened(0.10))
+        img.fill_rect(Rect2i(0, 30, 256, 6), dark)
+        if two_floors:
+                # fenêtres de l'étage avec linteaux et reflets
+                for wx in range(3):
+                        var x0 := 22 + wx * 82
+                        img.fill_rect(Rect2i(x0 - 4, 52, 44, 4), dark)
+                        img.fill_rect(Rect2i(x0 - 2, 56, 40, 56), dark)
+                        img.fill_rect(Rect2i(x0, 58, 36, 52), Color(0.22, 0.30, 0.40))
+                        img.fill_rect(Rect2i(x0, 58, 36, 10), Color(0.45, 0.55, 0.62))
+                img.fill_rect(Rect2i(0, 122, 256, 8), dark)
+        # bandeau d'enseigne puis store rayé
+        var aw_y := 138 if two_floors else 66
+        img.fill_rect(Rect2i(0, aw_y - 14, 256, 14), wall.darkened(0.12))
+        for tx in range(12, 240, 34):
+                img.fill_rect(Rect2i(tx, aw_y - 10, 20, 6), Color(0.95, 0.93, 0.88))
+        img.fill_rect(Rect2i(0, aw_y, 256, 34), awning)
+        for sx in range(0, 256, 32):
+                img.fill_rect(Rect2i(sx + 16, aw_y, 16, 34), awning.lightened(0.28))
+        # devanture : vitrine + volet + porte
+        var shop_y := aw_y + 34
+        img.fill_rect(Rect2i(0, shop_y, 256, 256 - shop_y), dark)
+        img.fill_rect(Rect2i(10, shop_y + 8, 100, 256 - shop_y - 16), Color(0.20, 0.28, 0.36))
+        img.fill_rect(Rect2i(10, shop_y + 8, 100, 12), Color(0.50, 0.58, 0.64))
+        var shutter: Color = Color(0.72, 0.70, 0.64)
+        img.fill_rect(Rect2i(118, shop_y + 8, 54, 256 - shop_y - 16), shutter)
+        for lx in range(120, 170, 7):
+                img.fill_rect(Rect2i(lx, shop_y + 8, 2, 256 - shop_y - 16), shutter.darkened(0.18))
+        img.fill_rect(Rect2i(182, shop_y + 8, 64, 256 - shop_y - 16), Color(0.14, 0.10, 0.08))
         img.generate_mipmaps()
-        return ImageTexture.create_from_image(img)
+        var mat := StandardMaterial3D.new()
+        mat.albedo_texture = ImageTexture.create_from_image(img)
+        mat.roughness = 0.9
+        return mat
+
+## Façade « Birni » : terre ocre, poutres saillantes (toron), bande décorative et porte sombre
+func _make_birni_facade(ochre: Color) -> StandardMaterial3D:
+        var img := Image.create(256, 256, false, Image.FORMAT_RGB8)
+        img.fill(ochre)
+        _mottle(img, ochre, 160)
+        var beam: Color = Color(0.30, 0.19, 0.12)
+        for by in [52, 118, 184]:
+                img.fill_rect(Rect2i(0, by, 256, 10), beam)
+                for bx in range(8, 256, 24):
+                        img.fill_rect(Rect2i(bx, by - 2, 6, 14), beam.darkened(0.15))
+        # bande décorative en losanges sous la corniche
+        var deco: Color = Color(0.58, 0.42, 0.30)
+        for dx in range(0, 256, 32):
+                img.fill_rect(Rect2i(dx + 12, 18, 8, 8), deco)
+                img.fill_rect(Rect2i(dx + 24, 18, 8, 8), Color(0.86, 0.72, 0.55))
+        img.fill_rect(Rect2i(0, 28, 256, 4), ochre.darkened(0.20))
+        # fenêtres étroites et porte sombre
+        for wx in [30, 190]:
+                img.fill_rect(Rect2i(wx, 150, 26, 34), Color(0.18, 0.14, 0.12))
+        img.fill_rect(Rect2i(108, 216, 40, 40), Color(0.16, 0.11, 0.08))
+        img.generate_mipmaps()
+        var mat := StandardMaterial3D.new()
+        mat.albedo_texture = ImageTexture.create_from_image(img)
+        mat.roughness = 1.0
+        return mat
 
 func _create_building_materials() -> void:
-        var walls: Array[Color] = [
-                Color(0.82, 0.74, 0.62), Color(0.70, 0.72, 0.76),
-                Color(0.80, 0.55, 0.42), Color(0.86, 0.84, 0.78),
+        # Palette « Zinder » : tons crème / sable / ocre / rose pâle des façades peintes,
+        # stores de boutiques vert / rouge / bleu / jaune ocre.
+        var awnings: Array[Color] = [
+                Color(0.24, 0.52, 0.30), Color(0.72, 0.25, 0.22),
+                Color(0.22, 0.42, 0.66), Color(0.82, 0.60, 0.18),
         ]
-        for wall in walls:
-                var mat := StandardMaterial3D.new()
-                mat.albedo_texture = _make_facade_texture(wall)
-                mat.uv1_triplanar = true
-                mat.uv1_world_triplanar = true
-                mat.uv1_scale = Vector3.ONE / 3.0
-                mat.roughness = 0.9
-                _wall_materials.append(mat)
+        var low_walls: Array[Color] = [
+                Color(0.92, 0.86, 0.70), Color(0.86, 0.76, 0.60), Color(0.88, 0.70, 0.64),
+        ]
+        var high_walls: Array[Color] = [
+                Color(0.84, 0.66, 0.44), Color(0.90, 0.89, 0.84), Color(0.92, 0.86, 0.70),
+        ]
+        _low_facades.clear()
+        _high_facades.clear()
+        _birni_facades.clear()
+        for wall in low_walls:
+                for awning in awnings:
+                        _low_facades.append(_make_shop_facade(wall, awning, false))
+        for i in range(high_walls.size()):
+                _high_facades.append(_make_shop_facade(high_walls[i], awnings[i % awnings.size()], true))
+        _birni_facades.append(_make_birni_facade(Color(0.74, 0.55, 0.38)))
+        _birni_facades.append(_make_birni_facade(Color(0.66, 0.49, 0.35)))
         _roof_material = StandardMaterial3D.new()
-        _roof_material.albedo_color = Color(0.22, 0.22, 0.24)
+        _roof_material.albedo_color = Color(0.58, 0.54, 0.48)
         _roof_material.roughness = 0.95
 
 func _add_building(center_xz: Vector2, footprint: Vector2, height: float) -> void:
-        var mat: StandardMaterial3D = _wall_materials[_rng.randi() % _wall_materials.size()]
+        var mat: StandardMaterial3D
+        if _rng.randf() < 0.25:
+                mat = _birni_facades[_rng.randi() % _birni_facades.size()]   # quartier Birni
+        else:
+                var pool: Array[StandardMaterial3D] = _low_facades if height < 6.0 else _high_facades
+                mat = pool[_rng.randi() % pool.size()]
         var body := StaticBody3D.new()
-        body.name = "Building"
+        _building_count += 1
+        body.name = "Building%d" % _building_count   # nom unique (Godot renomme sinon en @StaticBody3D@N)
         body.collision_layer = 1
         body.position = Vector3(center_xz.x, height * 0.5, center_xz.y)
         add_child(body)
@@ -443,6 +532,21 @@ func _add_building(center_xz: Vector2, footprint: Vector2, height: float) -> voi
         roof_instance.material_override = _roof_material
         roof_instance.position = Vector3(0.0, height * 0.5 + 0.15, 0.0)
         body.add_child(roof_instance)
+        # muret tout autour du toit plat (les toits de Zinder ne sont jamais nus)
+        var parapet_h: float = 0.5
+        var t: float = 0.18
+        for i in range(4):
+                var par := MeshInstance3D.new()
+                var pm := BoxMesh.new()
+                if i < 2:
+                        pm.size = Vector3(footprint.x + t * 2.0, parapet_h, t)
+                        par.position = Vector3(0.0, height * 0.5 + 0.3 + parapet_h * 0.5, (footprint.y * 0.5 + t * 0.5) * (1.0 if i == 0 else -1.0))
+                else:
+                        pm.size = Vector3(t, parapet_h, footprint.y)
+                        par.position = Vector3((footprint.x * 0.5 + t * 0.5) * (1.0 if i == 2 else -1.0), height * 0.5 + 0.3 + parapet_h * 0.5, 0.0)
+                par.mesh = pm
+                par.material_override = mat
+                body.add_child(par)
         var shape := BoxShape3D.new()
         shape.size = Vector3(footprint.x, height, footprint.y)
         var collision := CollisionShape3D.new()
@@ -464,7 +568,7 @@ func _build_buildings() -> void:
                                 var along: float = 20.0 + building_spacing * float(i)
                                 var depth: float = _rng.randf_range(7.0, 10.0)
                                 var width: float = _rng.randf_range(8.0, 12.0)
-                                var height: float = _rng.randf_range(8.0, 18.0)
+                                var height: float = _rng.randf_range(4.0, 7.5)   # 1 à 2 étages, comme à Zinder
                                 var lateral: float = setback + depth * 0.5
                                 var pos: Vector3 = dir * along + side * lateral * float(lateral_sign)
                                 var along_z: bool = absf(dir.z) > 0.5
@@ -481,7 +585,7 @@ func _build_buildings() -> void:
                                 var center2: Vector2 = Vector2(fx * float(qx), fz * float(qz))
                                 if _overlaps_building(center2, footprint2 * 0.5 + Vector2(building_gap, building_gap)):
                                         continue
-                                _add_building(center2, footprint2, _rng.randf_range(12.0, 25.0))
+                                _add_building(center2, footprint2, _rng.randf_range(5.0, 9.0))
 
 func _overlaps_building(center_xz: Vector2, half_extent: Vector2) -> bool:
         var probe := Rect2(center_xz - half_extent, half_extent * 2.0)
@@ -489,6 +593,40 @@ func _overlaps_building(center_xz: Vector2, half_extent: Vector2) -> bool:
                 if rect.intersects(probe):
                         return true
         return false
+
+## Rochers de granit de Zinder : dômes aplatis posés à l'horizon du plateau (décor lointain)
+func _build_rocks() -> void:
+        var mat := StandardMaterial3D.new()
+        mat.albedo_texture = _make_noise_texture(Color(0.42, 0.40, 0.38), Color(0.58, 0.55, 0.52), 0.03)
+        mat.roughness = 1.0
+        var spots: Array[Vector2] = [
+                Vector2(180.0, 60.0), Vector2(-170.0, -110.0), Vector2(120.0, -190.0),
+                Vector2(-130.0, 170.0), Vector2(210.0, -40.0),
+        ]
+        var rock_idx := 0
+        for s in spots:
+                for i in range(_rng.randi_range(3, 5)):
+                        var body := StaticBody3D.new()
+                        rock_idx += 1
+                        body.name = "Rock%d" % rock_idx   # nom unique (sinon @StaticBody3D@N)
+                        var r := _rng.randf_range(7.0, 16.0)
+                        body.position = Vector3(s.x + _rng.randf_range(-12.0, 12.0), r * 0.28, s.y + _rng.randf_range(-12.0, 12.0))
+                        add_child(body)
+                        var mi := MeshInstance3D.new()
+                        var m := SphereMesh.new()
+                        m.radius = r
+                        m.height = r * 0.62
+                        m.radial_segments = 16
+                        m.rings = 8
+                        mi.mesh = m
+                        mi.material_override = mat
+                        mi.scale = Vector3(1.0, 1.0, _rng.randf_range(0.8, 1.3))
+                        body.add_child(mi)
+                        var cs := CollisionShape3D.new()
+                        var shape := SphereShape3D.new()
+                        shape.radius = r * 0.6
+                        cs.shape = shape
+                        body.add_child(cs)
 
 func _build_trees() -> void:
         var positions: Array[Vector2] = []
