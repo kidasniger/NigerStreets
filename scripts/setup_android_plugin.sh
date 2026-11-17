@@ -20,6 +20,12 @@ GODOT_APP="$(find "$BUILD_DIR/src" -name 'GodotApp.java' | head -n 1)"
 [ -n "$GODOT_APP" ] || { echo "ERREUR : GodotApp.java introuvable" >&2; exit 1; }
 SRC_DIR="$(dirname "$GODOT_APP")"
 
+# 0) Info de version du template : l'éditeur l'écrit normalement à l'installation
+#    (VERSION_FULL_CONFIG, ex. « 4.7.2.stable ») ; sans elle l'export gradle refuse.
+GODOT_VERSION="${GODOT_VERSION:-4.7.2}"
+echo "${GODOT_VERSION}.stable" > "$BUILD_DIR/.build_version"
+echo "template marqué : $(cat "$BUILD_DIR/.build_version")"
+
 # 1) Copie du plugin (Java pur : aucune dépendance Kotlin) dans le package de l'app
 PKG="$(grep -m1 -E '^[[:space:]]*package[[:space:]]' "$GODOT_APP" | sed -E 's/^[[:space:]]*package[[:space:]]+//; s/;[[:space:]]*$//; s/[[:space:]]+$//')"
 cp "$ROOT/android_plugin/UpdateInstaller.java" "$SRC_DIR/UpdateInstaller.java"
