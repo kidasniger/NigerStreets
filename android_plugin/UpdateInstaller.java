@@ -69,7 +69,8 @@ public class UpdateInstaller extends GodotPlugin {
         if (!f.exists() || f.length() < 1000000L) return false;
         try {
             PackageInstaller installer = ctx.getPackageManager().getPackageInstaller();
-            int sessionId = installer.createSession(new PackageInstaller.SessionParams());
+            int sessionId = installer.createSession(
+                new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL));
             PackageInstaller.Session session = installer.openSession(sessionId);
             InputStream input = new FileInputStream(f);
             OutputStream out = session.openWrite("update", 0, f.length());
