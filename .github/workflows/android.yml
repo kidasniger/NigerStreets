@@ -88,8 +88,14 @@ jobs:
 
       - name: Install Android build template + plugin UpdateInstaller
         run: |
-          curl -L --fail -o "$RUNNER_TEMP/templates.tpz" "${{ env.TEMPLATES_DOWNLOAD_URL }}"
-          unzip -o "$RUNNER_TEMP/templates.tpz" 'templates/android_source.zip' -d "$RUNNER_TEMP"
+          set -o pipefail
+          TPZ="$RUNNER_TEMP/templates.tpz"
+          URL="${{ env.TEMPLATES_DOWNLOAD_URL }}"
+          if ! wget -c -q --tries=5 --timeout=90 -O "$TPZ" "$URL"; then
+            echo "wget a échoué, tentative avec curl (reprise + retries)"
+            curl -L --fail --retry 5 --retry-all-errors -C - -o "$TPZ" "$URL"
+          fi
+          unzip -o "$TPZ" 'templates/android_source.zip' -d "$RUNNER_TEMP"
           mkdir -p android/build
           unzip -o "$RUNNER_TEMP/templates/android_source.zip" -d android/build
           bash scripts/setup_android_plugin.sh
