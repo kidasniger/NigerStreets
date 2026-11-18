@@ -166,3 +166,16 @@ Tests sur Godot 4.7.2 exact (headless) :
 - Lâchée de 3 m au-dessus du joueur : glisse et se pose normalement (la voiture ne reste pas sur le joueur) ;
 - Parse des 10 scripts : 0 erreur.
 
+## Caméra en voiture : plus de vue sous le sol
+
+| ID | Correctif | Fichier |
+|---|---|---|
+| C1 | En voiture le bras de caméra n'a plus de collision (masque 0) : l'angle bas est limité par `driving_max_pitch` (0.10) dans `_apply_look`, et re-clampé à chaque image | `player_controller.gd` |
+
+## Routes en tuiles (étape 6c)
+
+| ID | Correctif | Fichier |
+|---|---|---|
+| C2 | Routes OSM en tuiles `r_X_Y.bin` (400 m) chargées par le streamer : thread, 1 ajout par image, rubans par classe, coupés au rond-point, sans collision ni ombre, 1 mesh par tuile | `zinder_streamer.gd` |
+| C2b | `build_osm_roads` pilote maintenant le streamer ; l'ancien chargement JSON de zone pilote est désactivé (évite les routes en double) | `world.gd` |
+| C2c | `*.bin` ajouté à `include_filter` des deux presets : les tuiles sont embarquées dans l'APK | `export_presets.cfg` |

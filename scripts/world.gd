@@ -3,10 +3,10 @@ extends Node3D
 
 @export_category("Roundabout")
 @export var roundabout_scene_path: String = "res://assets/environment/rond-point-elf.glb"
-@export var roundabout_scale: float = 6.0
-@export var roundabout_radius: float = 4.1
-@export var island_radius: float = 3.9
-@export var island_height: float = 12.0
+@export var roundabout_scale: float = 3.0
+@export var roundabout_radius: float = 2.05
+@export var island_radius: float = 1.95
+@export var island_height: float = 6.0
 
 @export_category("Roads")
 ## Goudron à double voie : 2 voies par sens, sans trottoir (24 m = 4 voies larges ; la texture s'adapte à cette largeur)
@@ -31,6 +31,7 @@ var road_arm_material: StandardMaterial3D
 ## Immeubles supprimés à la demande (garder seulement le rond-point et les routes)
 @export var build_buildings: bool = false
 @export var build_zinder: bool = true   # zone pilote OSM (zinder_zone.gd)
+@export var build_osm_roads: bool = true   # routes OSM de la zone pilote (zinder_roads.gd)
 @export var building_setback: float = 5.0
 @export var building_spacing: float = 16.0
 @export var building_gap: float = 6.0
@@ -84,7 +85,8 @@ func _ready() -> void:
         _setup_ground()
         _load_roundabout()
         _build_ring_road()
-        _build_roads()
+        if build_osm_roads: _build_zinder_roads()
+        else: _build_roads()
         _build_island_collision()
         if build_zinder: _build_zinder_zone()
         elif build_buildings: _build_buildings()
@@ -146,6 +148,22 @@ func _load_roundabout() -> void:
         roundabout.scale = Vector3.ONE * roundabout_scale
         roundabout.position = Vector3(0.0, roundabout_scale, 0.0)
         add_child(roundabout)
+
+func _build_zinder_roads() -> void:
+        if build_osm_roads:
+                return   # C2 : routes servies par ZinderStreamer (tuiles r_X_Y.bin), ancien chargement JSON désactivé
+        var road_script: GDScript = load("res://scripts/zinder_roads.gd") as GDScript
+        if road_script == null:
+                push_error("Ch31 : zinder_roads.gd introuvable")
+                return
+        var roads := Node3D.new()
+        roads.set_script(road_script)
+        roads.name = "ZinderRoads"
+        roads.set("road_material", road_material)
+        roads.set("tile_m", asphalt_tile_m)
+        roads.set("clip_radius", _ring_outer())
+        roads.set("surface_y", road_y + road_thickness * 0.5)
+        add_child(roads)
 
 func _ring_inner() -> float:
         return roundabout_radius + 0.1
@@ -395,7 +413,7 @@ func _setup_environment() -> void:
                 fill.visible = false
 
 func _setup_ground() -> void:
-        var ground_size: float = 500.0
+        var ground_size: float = 1400.0
         var ground_node: Node3D = get_node_or_null("Ground") as Node3D
         if ground_node == null:
                 ground_node = Node3D.new()
@@ -644,9 +662,14 @@ func _build_buildings() -> void:
                                 _add_building(center2, footprint2, _rng.randf_range(5.0, 9.0))
 
 func _build_zinder_zone() -> void:
-        var zone_script: GDScript = load("res://scripts/zinder_zone.gd")
+        var zone_script: GDScript = load("res://scripts/zinder_streamer.gd")
         var zone: Node3D = zone_script.new()
-        zone.name = "ZinderZone"
+        zone.name = "ZinderStreamer"
+        zone.set("build_roads", build_osm_roads)
+        zone.set("road_material", road_material)
+        zone.set("road_uv_m", asphalt_tile_m)
+        zone.set("clip_radius", _ring_outer())
+        zone.set("surface_y", road_y + road_thickness * 0.5)
         add_child(zone)
 
 func _overlaps_building(center_xz: Vector2, half_extent: Vector2) -> bool:

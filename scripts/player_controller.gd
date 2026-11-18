@@ -21,6 +21,8 @@ const HudScript := preload("res://scripts/hud.gd")
 @export var gamepad_look_speed: float = 2.8
 @export var min_pitch: float = -1.1
 @export var max_pitch: float = 0.65
+## Limite basse de la caméra en voiture (le bras traverse le sol, masque 0) : plus petit = caméra plus haute
+@export var driving_max_pitch: float = 0.10
 @export var fps_min_pitch: float = -1.45
 @export var fps_max_pitch: float = 1.45
 @export var start_first_person: bool = false
@@ -214,9 +216,11 @@ func _apply_look(delta: float) -> void:
         look += Input.get_vector("look_left", "look_right", "look_up", "look_down") * gamepad_look_speed * delta
         var low: float = fps_min_pitch if first_person else min_pitch
         var high: float = fps_max_pitch if first_person else max_pitch
+        if is_driving: high = minf(high, driving_max_pitch)
         if look.length_squared() > 0.0000001:
                 yaw -= look.x; pitch -= look.y; pitch = clampf(pitch, low, high)
         camera_pivot.rotation.y = yaw
+        if is_driving: pitch = minf(pitch, driving_max_pitch)
         camera_pivot.rotation.x = clampf(pitch, fps_min_pitch, fps_max_pitch)
 
 ## Distance de la caméra (3e personne), plus reculée en voiture — lissée à la main :

@@ -81,14 +81,25 @@ func _on_radar_input(event: InputEvent) -> void:
         elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
                 tapped = true
         if tapped:
-                pass   # ancienne carte satellite désactivée
+                _open_carte()
 
 ## Crée la carte au premier appel puis l'affiche (met le jeu en pause)
 func _open_carte() -> void:
         if _carte == null:
                 _carte = CarteZinder.new()
                 add_child(_carte)
+        _carte.set_player_world(_player_map_pos())
         _carte.open()
+
+## Origine du jeu (rond-point ELF) dans le repère de la carte : m, x est, y sud
+const MAP_ORIGIN := Vector2(-278.26, -181.95)
+
+func _player_map_pos() -> Vector2:
+        var p: Node = get_parent()
+        if p is Node3D:
+                var g: Vector3 = (p as Node3D).global_position
+                return Vector2(g.x, g.z) + MAP_ORIGIN
+        return MAP_ORIGIN
 
 func _make_label(font_size: int) -> Label:
         var label: Label = Label.new()

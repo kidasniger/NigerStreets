@@ -42,7 +42,7 @@ const WATER_LINE_WIDTH: float = 2.0
 const PIN_FONT_SIZE := 15
 const ZOOM_WHEEL_FACTOR := 1.18
 const ZOOM_MAX := 12.0            # px par mètre (niveau rue)
-const VIEW_INIT_M := 15000.0      # largeur visible à l'ouverture (m)
+const VIEW_INIT_M := 1500.0      # largeur visible à l'ouverture (m)
 const VIEW_MIN_M := 40000.0       # largeur visible au dézoom maximal (m)
 
 ## Repères réels en mètres, déduits des UV de l'image satellite (grille Esri
@@ -117,6 +117,9 @@ func open() -> void:
 	visible = true
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if _loaded:
+		_cam = _player_world   # rouvre centrée sur le joueur
+		_apply_view()
 	_ensure_loaded()
 
 func close() -> void:
@@ -368,7 +371,7 @@ func _compute_view_limits() -> void:
 	_zoom_min = maxf(_map_area.size.x / VIEW_MIN_M, 0.001)
 	_zoom_max = ZOOM_MAX
 	_zoom = clampf(_map_area.size.x / VIEW_INIT_M, _zoom_min, _zoom_max)
-	_cam = Vector2.ZERO
+	_cam = _player_world
 
 func _apply_view() -> void:
 	if not _ci_water.is_valid():
