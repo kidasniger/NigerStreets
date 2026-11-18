@@ -31,7 +31,7 @@ func _ready() -> void:
 
         # --- ÉTIQUETTE « CARTE » SOUS LE RADAR ---
         var map_hint := _make_label(14)
-        map_hint.text = "Carte"
+        map_hint.text = ""
         map_hint.position = Vector2(left, 172.0)
         map_hint.custom_minimum_size = Vector2(160.0, 18.0)
         map_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -81,7 +81,7 @@ func _on_radar_input(event: InputEvent) -> void:
         elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
                 tapped = true
         if tapped:
-                _open_carte()
+                pass   # ancienne carte satellite désactivée
 
 ## Crée la carte au premier appel puis l'affiche (met le jeu en pause)
 func _open_carte() -> void:

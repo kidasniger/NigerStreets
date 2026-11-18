@@ -30,6 +30,7 @@ var road_arm_material: StandardMaterial3D
 @export_category("Buildings")
 ## Bâtiments bas de Zinder (1-2 étages, boutiques, quartier Birni) activés par défaut.
 @export var build_buildings: bool = true
+@export var build_zinder: bool = true   # zone pilote OSM (zinder_zone.gd)
 @export var building_setback: float = 5.0
 @export var building_spacing: float = 16.0
 @export var building_gap: float = 6.0
@@ -39,7 +40,7 @@ var road_arm_material: StandardMaterial3D
 ## Arbres désactivés (aucun arbre dans la ville)
 @export var build_trees: bool = false
 ## Rochers de granit de Zinder posés à l'horizon du plateau
-@export var build_rocks: bool = true
+@export var build_rocks: bool = false
 
 var _rng := RandomNumberGenerator.new()
 var _building_rects: Array[Rect2] = []
@@ -85,7 +86,8 @@ func _ready() -> void:
         _build_ring_road()
         _build_roads()
         _build_island_collision()
-        if build_buildings: _build_buildings()
+        if build_zinder: _build_zinder_zone()
+        elif build_buildings: _build_buildings()
         if build_trees: _build_trees()
         if build_rocks: _build_rocks()   # rochers de granit à l'horizon
         # Spawn des véhicules APRÈS que tout soit dans l'arbre
@@ -640,6 +642,12 @@ func _build_buildings() -> void:
                                 if _overlaps_building(center2, footprint2 * 0.5 + Vector2(building_gap, building_gap)):
                                         continue
                                 _add_building(center2, footprint2, _rng.randf_range(5.0, 9.0))
+
+func _build_zinder_zone() -> void:
+        var zone_script: GDScript = load("res://scripts/zinder_zone.gd")
+        var zone: Node3D = zone_script.new()
+        zone.name = "ZinderZone"
+        add_child(zone)
 
 func _overlaps_building(center_xz: Vector2, half_extent: Vector2) -> bool:
         var probe := Rect2(center_xz - half_extent, half_extent * 2.0)
