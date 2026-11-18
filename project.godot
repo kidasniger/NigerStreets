@@ -37,6 +37,10 @@ window/size/window_height_override=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/niger_streets_export/plugin.cfg")
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

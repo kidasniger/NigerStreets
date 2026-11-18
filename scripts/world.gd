@@ -28,8 +28,8 @@ var road_arm_material: StandardMaterial3D
 @export var sidewalk_height: float = 0.12
 
 @export_category("Buildings")
-## Bâtiments bas de Zinder (1-2 étages, boutiques, quartier Birni) activés par défaut.
-@export var build_buildings: bool = true
+## Immeubles supprimés à la demande (garder seulement le rond-point et les routes)
+@export var build_buildings: bool = false
 @export var build_zinder: bool = true   # zone pilote OSM (zinder_zone.gd)
 @export var building_setback: float = 5.0
 @export var building_spacing: float = 16.0
@@ -39,7 +39,7 @@ var road_arm_material: StandardMaterial3D
 @export var decor_seed: int = 31
 ## Arbres désactivés (aucun arbre dans la ville)
 @export var build_trees: bool = false
-## Rochers de granit de Zinder posés à l'horizon du plateau
+## Rochers supprimés à la demande (garder seulement le rond-point et les routes)
 @export var build_rocks: bool = false
 
 var _rng := RandomNumberGenerator.new()

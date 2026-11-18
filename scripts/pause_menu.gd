@@ -191,6 +191,12 @@ class PauseOverlay extends Control:
 		var def := _button("Réglages par défaut", false)
 		def.pressed.connect(_reset_settings)
 		vbox.add_child(def)
+		vbox.add_child(_spacer(4))
+		var upd := _button("Rechercher les mises à jour", false)
+		var upd_status := _label("", 14, Color(1.0, 0.85, 0.55), true)
+		upd.pressed.connect(_check_updates.bind(upd, upd_status))
+		vbox.add_child(upd)
+		vbox.add_child(upd_status)
 		var back := _button("Retour", false)
 		back.pressed.connect(_close_settings)
 		vbox.add_child(back)
@@ -232,6 +238,25 @@ class PauseOverlay extends Control:
 		parent_menu.show_settings = false
 		parent_menu._play_click()
 		rebuild()
+
+	## Vérification manuelle de mise à jour (comme MusicPro : appel l'autoload
+	## UpdateChecker ; si une version existe, sa popup d'installation s'ouvre)
+	func _check_updates(btn: Button, status: Label) -> void:
+		if not is_instance_valid(btn) or not is_instance_valid(status):
+			return
+		var uc := get_node_or_null("/root/UpdateChecker")
+		if uc == null:
+			status.text = "Indisponible sur cette version"
+			return
+		btn.disabled = true
+		btn.text = "Vérification…"
+		status.text = ""
+		uc.check_manual(func(msg: String) -> void:
+			if not is_instance_valid(btn) or not is_instance_valid(status):
+				return
+			btn.disabled = false
+			btn.text = "Rechercher les mises à jour"
+			status.text = msg)
 
 	# ---------------------------------------------------- fabriques de Controls
 
@@ -286,6 +311,8 @@ class PauseOverlay extends Control:
 		b.add_theme_stylebox_override("hover", hover)
 		b.add_theme_stylebox_override("pressed", pressed)
 		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		b.add_theme_stylebox_override("disabled", normal)
+		b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.55))
 		b.add_theme_color_override("font_color", Color(0.06, 0.07, 0.09) if accent else Color(1, 1, 1, 0.95))
 		b.add_theme_color_override("font_hover_color", Color(0.06, 0.07, 0.09) if accent else Color(1, 1, 0.9, 1))
 		b.add_theme_color_override("font_pressed_color", Color(0.06, 0.07, 0.09))
