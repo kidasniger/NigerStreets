@@ -19,6 +19,7 @@ var popup_open: bool = false
 var _http: HTTPRequest = null
 var _popup_layer: CanvasLayer = null
 var _apk_url: String = ""
+var _tag: String = ""
 var _dl_http: HTTPRequest = null
 var _msg: Label = null
 var _progress: Label = null
@@ -141,6 +142,7 @@ func _show_popup(tag: String, apk_url: String, local_build: int, size_mb: int) -
 		return
 	popup_open = true
 	_apk_url = apk_url
+	_tag = tag
 	_popup_layer = CanvasLayer.new()
 	_popup_layer.layer = 20
 	add_child(_popup_layer)
@@ -292,12 +294,19 @@ func _on_download_completed(result: int, response_code: int, _headers: PackedStr
 		var abs_path: String = ProjectSettings.globalize_path(APK_SAVE_PATH)
 		if plugin.installApk(abs_path):
 			_progress.visible = false
-			_set_message("Téléchargement terminé. Android vous demande de confirmer l'installation de la version %s." % _build_tag())
-			_set_buttons([["Fermer", _close_popup]])
+			_set_message("Téléchargement terminé. Android vous demande de confirmer l'installation de la version %s." % _tag)
+			_set_buttons([
+				["Fermer", _close_popup],
+				["Ouvrir dans le navigateur", _open_in_browser],
+			])
 			return
 	# Repli : navigateur (l'installation ne s'est pas lancée)
 	OS.shell_open(_apk_url)
 	_close_popup()
+
+## Secours : ouvre la page de téléchargement dans le navigateur (la popup reste affichée)
+func _open_in_browser() -> void:
+	OS.shell_open(_apk_url)
 
 func _build_tag() -> String:
 	return str(ProjectSettings.get_setting("application/config/version", ""))

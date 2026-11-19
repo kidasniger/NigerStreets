@@ -1,8 +1,10 @@
 package com.godot.game;
 
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageInstaller;
 import android.net.Uri;
 import android.os.Build;
@@ -82,10 +84,46 @@ public class UpdateInstaller extends GodotPlugin {
             session.fsync(out);
             out.close();
             input.close();
-            int flags = Build.VERSION.SDK_INT >= 23
-                ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                : PendingIntent.FLAG_UPDATE_CURRENT;
-            PendingIntent pi = PendingIntent.getActivity(ctx, sessionId, new Intent(), flags);
+            // Android envoie l'état de l'installation à ce récepteur : quand il demande
+            // la confirmation de l'utilisateur, on ouvre la fenêtre système correspondante.
+            final String action = ctx.getPackageName() + ".UPDATE_INSTALL_STATUS";
+            final Context appCtx = ctx.getApplicationContext();
+            final BroadcastReceiver receiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, Intent intent) {
+                    int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+                    if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                        Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+                        if (confirm != null) {
+                            confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            try {
+                                c.startActivity(confirm);
+                            } catch (Exception e) {
+                                // rien : l'utilisateur peut réessayer
+                            }
+                        }
+                    } else {
+                        try {
+                            appCtx.unregisterReceiver(this);
+                        } catch (Exception e) {
+                            // déjà désenregistré
+                        }
+                    }
+                }
+            };
+            IntentFilter filter = new IntentFilter(action);
+            if (Build.VERSION.SDK_INT >= 33) {
+                appCtx.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                appCtx.registerReceiver(receiver, filter);
+            }
+            Intent statusIntent = new Intent(action);
+            statusIntent.setPackage(ctx.getPackageName());
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= 31) {
+                flags |= PendingIntent.FLAG_MUTABLE;
+            }
+            PendingIntent pi = PendingIntent.getBroadcast(ctx, sessionId, statusIntent, flags);
             session.commit(pi.getIntentSender());
             session.close();
             return true;

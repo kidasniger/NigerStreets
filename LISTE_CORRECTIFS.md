@@ -196,3 +196,4 @@ Tests sur Godot 4.7.2 exact (headless) :
 | N7 | Compteur de performance du HUD (FPS, ms, draw calls, triangles) activable dans l'onglet Système ou avec F3 | scripts/game_settings.gd, scripts/pause_menu.gd, scripts/hud.gd |
 | N8 | Rendu 3D réduit à 70 % en voiture au-dessus de 60 km/h (retour sous 45 km/h), activable dans l'onglet Image | scripts/game_settings.gd, scripts/pause_menu.gd, scripts/player_controller.gd |
 | N10 | Frein à main avec drift : au-dessus de 15 km/h, freiner fait glisser l'arrière (retour progressif au relâchement) | scripts/vehicle.gd |
+| U1 | Mise à jour dans l'appli : le plugin reçoit la demande de confirmation d'Android (récepteur), bonne version dans le message, bouton navigateur de secours | android_plugin/UpdateInstaller.java + scripts/update_checker.gd |
