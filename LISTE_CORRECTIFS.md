@@ -179,3 +179,20 @@ Tests sur Godot 4.7.2 exact (headless) :
 | C2 | Routes OSM en tuiles `r_X_Y.bin` (400 m) chargées par le streamer : thread, 1 ajout par image, rubans par classe, coupés au rond-point, sans collision ni ombre, 1 mesh par tuile | `zinder_streamer.gd` |
 | C2b | `build_osm_roads` pilote maintenant le streamer ; l'ancien chargement JSON de zone pilote est désactivé (évite les routes en double) | `world.gd` |
 | C2c | `*.bin` ajouté à `include_filter` des deux presets : les tuiles sont embarquées dans l'APK | `export_presets.cfg` |
+
+## M — Menu pause refondu
+
+| ID | Correctif | Fichier |
+|---|---|---|
+| M1 | Menu réglages modernisé : onglets Jeu/Image/Son/Système, interrupteurs, sélecteur à segments, curseurs fins, défilement tactile | scripts/pause_menu.gd |
+
+## N — Améliorations (liste de 50)
+
+| ID | Correctif | Fichier |
+|---|---|---|
+| N1 | Distance d'affichage réglable (courte / normale / longue), onglet Image du menu pause, persistante | scripts/game_settings.gd, scripts/pause_menu.gd, scripts/world.gd |
+| N3 | Limite de FPS réglable (30 / 45 / 60), onglet Image du menu pause, persistante | scripts/game_settings.gd, scripts/pause_menu.gd |
+| N4 | Mode batterie automatique (sous 20 % : qualité éco, 30 FPS, distance courte), activable dans l'onglet Image | scripts/game_settings.gd, scripts/pause_menu.gd |
+| N7 | Compteur de performance du HUD (FPS, ms, draw calls, triangles) activable dans l'onglet Système ou avec F3 | scripts/game_settings.gd, scripts/pause_menu.gd, scripts/hud.gd |
+| N8 | Rendu 3D réduit à 70 % en voiture au-dessus de 60 km/h (retour sous 45 km/h), activable dans l'onglet Image | scripts/game_settings.gd, scripts/pause_menu.gd, scripts/player_controller.gd |
+| N10 | Frein à main avec drift : au-dessus de 15 km/h, freiner fait glisser l'arrière (retour progressif au relâchement) | scripts/vehicle.gd |

@@ -670,6 +670,8 @@ func _build_zinder_zone() -> void:
         zone.set("road_uv_m", asphalt_tile_m)
         zone.set("clip_radius", _ring_outer())
         zone.set("surface_y", road_y + road_thickness * 0.5)
+        GameSettings.set_streamer_radii(zone)   # rayons de chargement selon le réglage Distance d'affichage
+        zone.add_to_group("zinder_streamer")   # le menu pause règle la distance via ce groupe
         add_child(zone)
 
 func _overlaps_building(center_xz: Vector2, half_extent: Vector2) -> bool:

@@ -3,6 +3,7 @@ extends CanvasLayer
 
 const RadarScript = preload("res://scripts/radar.gd")
 
+## Obsolète : le compteur suit maintenant GameSettings.show_perf (interrupteur du menu pause, touche F3)
 @export var show_fps_on_start: bool = true
 
 var _fps_label: Label
@@ -40,7 +41,8 @@ func _ready() -> void:
         # --- FPS ---
         _fps_label = _make_label(18)
         _fps_label.position = Vector2(left + 170.0, 10.0)
-        _fps_label.visible = show_fps_on_start
+        GameSettings.load_settings()
+        _fps_label.visible = GameSettings.show_perf
         add_child(_fps_label)
         
         # --- MESSAGES ---
@@ -115,6 +117,7 @@ func _process(delta: float) -> void:
                 var player = get_parent()
                 if "yaw" in player:
                         _radar.set_player_yaw(player.yaw)
+        _fps_label.visible = GameSettings.show_perf   # suit l'interrupteur du menu pause (et F3)
         if not _fps_label.visible:
                 return
         _fps_timer -= delta
@@ -123,10 +126,17 @@ func _process(delta: float) -> void:
         _fps_timer = 0.25
         var fps: float = Engine.get_frames_per_second()
         var frame_ms: float = 1000.0 / maxf(fps, 1.0)
-        _fps_label.text = "FPS %d  (%.1f ms)" % [int(fps), frame_ms]
+        var info: String = "FPS %d  (%.1f ms)" % [int(fps), frame_ms]
+        var calls: int = int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
+        if calls > 0:
+                var prims: int = int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
+                info += "  ·  %d draw calls  ·  %d k tri" % [calls, int(float(prims) / 1000.0)]
+        _fps_label.text = info
 
 func toggle_fps() -> void:
-        _fps_label.visible = not _fps_label.visible
+        GameSettings.show_perf = not GameSettings.show_perf
+        GameSettings.save_settings()
+        _fps_label.visible = GameSettings.show_perf
 
 func set_first_person(value: bool, announce: bool = true) -> void:
         if announce:

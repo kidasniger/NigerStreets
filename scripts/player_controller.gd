@@ -256,6 +256,10 @@ func _physics_process(delta: float) -> void:
 
         # --- GESTION VÉHICULE ---
         _check_vehicle_interaction()
+        var speed_kmh: float = 0.0
+        if vehicle_state == "driving" and is_instance_valid(current_vehicle):
+                speed_kmh = absf(current_vehicle.forward_speed) * 3.6
+        GameSettings.update_speed(speed_kmh, get_viewport())   # rendu réduit à grande vitesse (réglage du menu)
         if vehicle_state != "":
                 _vehicle_process(delta)
                 return

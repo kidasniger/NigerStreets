@@ -46,6 +46,12 @@ var is_player_driving: bool = false
 var forward_speed: float = 0.0
 var wheels: Array[VehicleWheel3D] = []
 
+## Frein à main (drift) : au-dessus de DRIFT_MIN_SPEED, freiner fait perdre de l'adhérence aux roues arrière
+const DRIFT_MIN_SPEED: float = 4.2        # m/s (~15 km/h)
+const DRIFT_GRIP_FACTOR: float = 0.45     # adhérence arrière en drift = 45 % de la normale
+var _drift_k: float = 0.0                 # 0 = adhérence normale, 1 = drift complet
+var _rear_grip_base: float = -1.0         # adhérence arrière d'origine (lue une seule fois)
+
 var _model: Node3D
 ## Boîte de collision du châssis (repère du véhicule) : sert à empêcher le joueur de traverser la voiture
 var body_center: Vector3 = Vector3(0.0, 0.8, 1.6)
@@ -454,6 +460,9 @@ func _physics_process(delta: float) -> void:
                         w.engine_force = 0.0
                         w.brake = parking_brake_force
                         w.steering = move_toward(w.steering, 0.0, steer_speed * delta)
+                if _drift_k > 0.0:
+                        _drift_k = 0.0
+                        _apply_rear_grip()
                 horn_active = false
                 return
 
@@ -490,6 +499,27 @@ func _physics_process(delta: float) -> void:
         for w: VehicleWheel3D in wheels:
                 w.engine_force = engine
                 w.brake = brake
+
+        # Frein à main : drift si on freine vite (arrière moins adhérent), retour progressif au relâchement
+        var drift_on: bool = brake_input and absf(forward_speed) > DRIFT_MIN_SPEED
+        var k_before: float = _drift_k
+        _drift_k = move_toward(_drift_k, 1.0 if drift_on else 0.0, delta / (0.15 if drift_on else 0.4))
+        if _drift_k != k_before:
+                _apply_rear_grip()
+
+## Applique l'adhérence aux roues arrière selon _drift_k (l'adhérence d'origine est lue une seule fois)
+func _apply_rear_grip() -> void:
+        if _rear_grip_base < 0.0:
+                for w: VehicleWheel3D in wheels:
+                        if not w.use_as_steering:
+                                _rear_grip_base = w.wheel_friction_slip
+                                break
+        if _rear_grip_base < 0.0:
+                return
+        var grip: float = lerpf(_rear_grip_base, _rear_grip_base * DRIFT_GRIP_FACTOR, _drift_k)
+        for w: VehicleWheel3D in wheels:
+                if not w.use_as_steering:
+                        w.wheel_friction_slip = grip
 
 # --------------------------------------------- filets de sécurité (voiture bloquée)
 
